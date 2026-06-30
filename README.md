@@ -73,7 +73,7 @@ The tool descriptions are written as instructions for the front-end LLM (when to
 | `recall_related` | **Semantic** vector search — find past entries related in meaning, even with different wording. |
 | `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
 | `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
-| `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching embedding models (the server warns on startup when the index no longer matches). Originals are never touched. |
+| `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend — a different model **or** a different implementation (the server warns on startup when the index no longer matches). Originals are never touched. |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the LLM picks
 based on the question (precise filter vs. meaning). `generate_review` and `surface_patterns`
