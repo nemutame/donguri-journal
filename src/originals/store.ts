@@ -7,9 +7,13 @@
  * The server never interprets the bytes (no vision/audio models) — it only stores
  * and serves them so the LLM can re-view / re-extract later.
  *
+ * Objects are addressed purely by content hash, so identical bytes always map to
+ * the same ref regardless of the supplied filename/MIME. The MIME type is kept as
+ * separate sidecar metadata rather than baked into the ref.
+ *
  * The backend is pluggable behind `OriginalStore`. The default is a local
- * content-addressed directory; an Eagle backend can be added as an opt-in later
- * without touching callers.
+ * directory; an Eagle backend can be added as an opt-in later without touching
+ * callers.
  */
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -24,7 +28,7 @@ export interface SaveOriginalInput {
 }
 
 export interface SavedOriginal {
-  /** Reference stored in entries.original_ref, e.g. "local:<sha256>.<ext>". */
+  /** Reference stored in entries.original_ref, e.g. "local:<sha256>". */
   ref: string;
   bytes: number;
   mime?: string;
@@ -43,33 +47,6 @@ export interface OriginalStore {
   /** Load a previously saved original, or null if the ref is unknown to this store. */
   get(ref: string): Promise<LoadedOriginal | null>;
 }
-
-const MIME_TO_EXT: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/gif": "gif",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-  "image/bmp": "bmp",
-  "image/tiff": "tiff",
-  "image/avif": "avif",
-  "image/heic": "heic",
-  "audio/mpeg": "mp3",
-  "audio/wav": "wav",
-  "audio/x-wav": "wav",
-  "audio/ogg": "ogg",
-  "audio/flac": "flac",
-  "audio/aac": "aac",
-  "audio/mp4": "m4a",
-  "audio/webm": "weba",
-  "video/mp4": "mp4",
-  "video/quicktime": "mov",
-  "video/webm": "webm",
-  "application/pdf": "pdf",
-  "text/plain": "txt",
-  "text/markdown": "md",
-  "application/json": "json",
-};
 
 const EXT_TO_MIME: Record<string, string> = {
   png: "image/png",
@@ -98,28 +75,33 @@ const EXT_TO_MIME: Record<string, string> = {
   json: "application/json",
 };
 
-function sanitizeExt(raw: string): string | null {
-  const ext = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return ext.length > 0 && ext.length <= 8 ? ext : null;
-}
-
-/** Pick a file extension from the filename, then the mime type, else "bin". */
-function extensionFor(input: SaveOriginalInput): string {
+/** Resolve a MIME type from the explicit value, else the filename extension. */
+function resolveMime(input: SaveOriginalInput): string | undefined {
+  if (input.mime && input.mime.length > 0) return input.mime.toLowerCase();
   if (input.filename) {
     const dot = input.filename.lastIndexOf(".");
     if (dot >= 0) {
-      const ext = sanitizeExt(input.filename.slice(dot + 1));
-      if (ext) return ext;
+      const ext = input.filename
+        .slice(dot + 1)
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+      const mime = EXT_TO_MIME[ext];
+      if (mime) return mime;
     }
   }
-  if (input.mime) {
-    const ext = MIME_TO_EXT[input.mime.toLowerCase()];
-    if (ext) return ext;
-  }
-  return "bin";
+  return undefined;
 }
 
-/** Content-addressed store under a local directory. */
+interface SidecarMeta {
+  mime?: string;
+  filename?: string;
+}
+
+/**
+ * Content-addressed store under a local directory. Each original is stored as a
+ * blob named `<sha256>` plus a `<sha256>.json` sidecar holding its MIME type and
+ * original filename.
+ */
 export class LocalDirStore implements OriginalStore {
   readonly kind = "local";
   #baseDir: string;
@@ -130,27 +112,41 @@ export class LocalDirStore implements OriginalStore {
 
   async save(input: SaveOriginalInput): Promise<SavedOriginal> {
     const sha = createHash("sha256").update(input.data).digest("hex");
-    const ext = extensionFor(input);
-    const name = `${sha}.${ext}`;
-    const path = join(this.#baseDir, name);
-    if (!existsSync(path)) {
+    const mime = resolveMime(input);
+    const blobPath = join(this.#baseDir, sha);
+    const metaPath = join(this.#baseDir, `${sha}.json`);
+    if (!existsSync(blobPath)) {
       await mkdir(this.#baseDir, { recursive: true });
-      await writeFile(path, input.data);
+      await writeFile(blobPath, input.data);
     }
-    return { ref: `local:${name}`, bytes: input.data.length, mime: input.mime ?? EXT_TO_MIME[ext] };
+    if (!existsSync(metaPath)) {
+      const meta: SidecarMeta = { mime, filename: input.filename };
+      await writeFile(metaPath, JSON.stringify(meta));
+    }
+    return { ref: `local:${sha}`, bytes: input.data.length, mime };
   }
 
   async get(ref: string): Promise<LoadedOriginal | null> {
     const prefix = "local:";
     if (!ref.startsWith(prefix)) return null;
-    const name = ref.slice(prefix.length);
-    // Strict shape (sha256 + simple ext) also rules out path traversal.
-    if (!/^[a-f0-9]{64}\.[a-z0-9]+$/.test(name)) return null;
-    const path = join(this.#baseDir, name);
-    if (!path.startsWith(this.#baseDir) || !existsSync(path)) return null;
-    const data = await readFile(path);
-    const ext = name.slice(name.lastIndexOf(".") + 1);
-    return { data, mime: EXT_TO_MIME[ext], path };
+    const sha = ref.slice(prefix.length);
+    // Pure hex sha256: also rules out path traversal.
+    if (!/^[a-f0-9]{64}$/.test(sha)) return null;
+    const blobPath = join(this.#baseDir, sha);
+    if (!blobPath.startsWith(this.#baseDir) || !existsSync(blobPath)) return null;
+
+    const data = await readFile(blobPath);
+    let mime: string | undefined;
+    const metaPath = join(this.#baseDir, `${sha}.json`);
+    if (existsSync(metaPath)) {
+      try {
+        const meta = JSON.parse(await readFile(metaPath, "utf8")) as SidecarMeta;
+        if (typeof meta.mime === "string") mime = meta.mime;
+      } catch {
+        // Corrupt sidecar — fall back to no MIME rather than failing the read.
+      }
+    }
+    return { data, mime, path: blobPath };
   }
 }
 

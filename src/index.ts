@@ -41,6 +41,23 @@ function jsonResult(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
 }
 
+function errorResult(message: string) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
+  };
+}
+
+/** Decode strict, canonical base64; returns null for malformed input. */
+function decodeBase64Strict(input: string): Buffer | null {
+  const cleaned = input.replace(/\s+/g, "");
+  if (cleaned.length === 0 || cleaned.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
+    return null;
+  }
+  const buf = Buffer.from(cleaned, "base64");
+  return buf.toString("base64") === cleaned ? buf : null;
+}
+
 /** Result with an optional PNG chart followed by the structured JSON payload. */
 function richResult(png: Buffer | null, payload: unknown) {
   const content: Array<
@@ -129,8 +146,12 @@ server.registerTool(
   async (args) => {
     const { original_data, original_mime, original_filename, ...entry } = args;
     if (original_data && original_data.length > 0) {
+      const bytes = decodeBase64Strict(original_data);
+      if (!bytes) {
+        return errorResult("original_data is not valid base64");
+      }
       const saved = await originalStore.save({
-        data: Buffer.from(original_data, "base64"),
+        data: bytes,
         mime: original_mime,
         filename: original_filename,
       });
@@ -336,20 +357,19 @@ server.registerTool(
     if (!loaded) {
       return jsonResult({ found: false, original_ref });
     }
-    const meta = {
-      found: true,
-      original_ref,
-      mime: loaded.mime,
-      bytes: loaded.data.length,
-      path: loaded.path,
-    };
+    const base = { found: true, original_ref, mime: loaded.mime, bytes: loaded.data.length };
     const content: Array<
       { type: "image"; data: string; mimeType: string } | { type: "text"; text: string }
     > = [];
     if (loaded.mime?.startsWith("image/")) {
+      // Image bytes are returned inline; the local path is withheld to avoid
+      // leaking filesystem details (home dir / username).
       content.push({ type: "image", data: loaded.data.toString("base64"), mimeType: loaded.mime });
+      content.push({ type: "text", text: JSON.stringify(base, null, 2) });
+    } else {
+      // Non-renderable types: return the local path so the artifact can be opened.
+      content.push({ type: "text", text: JSON.stringify({ ...base, path: loaded.path }, null, 2) });
     }
-    content.push({ type: "text", text: JSON.stringify(meta, null, 2) });
     return { content };
   },
 );
