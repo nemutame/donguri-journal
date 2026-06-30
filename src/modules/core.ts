@@ -123,26 +123,41 @@ export const coreModule: JournalModule = {
       },
       async (args) => {
         const { original_data, original_mime, original_filename, ...entry } = args;
-        if (original_data && original_data.length > 0) {
-          // Reject oversized payloads before allocating the decoded buffer.
-          if (Math.ceil((original_data.length * 3) / 4) > config.maxOriginalBytes) {
-            return errorResult(
-              `original_data exceeds the maximum allowed size (${config.maxOriginalBytes} bytes)`,
-            );
-          }
-          const bytes = decodeBase64Strict(original_data);
-          if (!bytes) {
-            return errorResult("original_data is not valid base64");
-          }
-          const saved = await originals.save({
-            data: bytes,
-            mime: original_mime,
-            filename: original_filename,
-          });
-          entry.original_ref = saved.ref;
+        if (!original_data || original_data.length === 0) {
+          // Text-only capture (or an external original_ref passed through as-is).
+          return jsonResult(await store.insert(entry));
         }
+        // Coarse guard avoids decoding an absurd payload; the exact size check is
+        // on the decoded length, so a valid base64 right at the limit is not
+        // over-rejected.
+        const tooLarge = errorResult(
+          `original_data exceeds the maximum allowed size (${config.maxOriginalBytes} bytes)`,
+        );
+        if (original_data.length > config.maxOriginalBytes * 2) {
+          return tooLarge;
+        }
+        const bytes = decodeBase64Strict(original_data);
+        if (!bytes) {
+          return errorResult("original_data is not valid base64");
+        }
+        if (bytes.length > config.maxOriginalBytes) {
+          return tooLarge;
+        }
+        // Insert the entry FIRST, then save + attach the original, so a dedupe
+        // (or an insert failure) can never leave a saved-but-unreferenced original.
+        entry.original_ref = undefined;
         const result = await store.insert(entry);
-        return jsonResult(result);
+        const existingRef = result.deduped ? store.getOriginalRef(result.id) : null;
+        if (existingRef) {
+          return jsonResult({ ...result, original_ref: existingRef });
+        }
+        const saved = await originals.save({
+          data: bytes,
+          mime: original_mime,
+          filename: original_filename,
+        });
+        store.attachOriginalIfAbsent(result.id, saved.ref);
+        return jsonResult({ ...result, original_ref: saved.ref });
       },
     );
 
@@ -331,8 +346,8 @@ export const coreModule: JournalModule = {
           "Retrieve the verbatim original (image / audio / file) that was saved at capture time, by " +
           "its `original_ref` (e.g. 'local:<sha256>' from an entry). Images are returned inline " +
           "so you (the multimodal LLM) can look again and, if needed, RE-EXTRACT text from them; " +
-          "other types return the local file path and metadata. Use this after recall_related / " +
-          "query_entries surfaces an entry whose original you want to actually see again.",
+          "other types return metadata only. Use this after recall_related / query_entries " +
+          "surfaces an entry whose original you want to actually see again.",
         inputSchema: {
           original_ref: z
             .string()
@@ -345,26 +360,21 @@ export const coreModule: JournalModule = {
         if (!loaded) {
           return jsonResult({ found: false, original_ref });
         }
+        // Never return the absolute filesystem path (it leaks home dir /
+        // username). Images come back inline; other types return metadata only
+        // (opening non-renderable originals is the management UI's job).
         const base = { found: true, original_ref, mime: loaded.mime, bytes: loaded.data.length };
         const content: Array<
           { type: "image"; data: string; mimeType: string } | { type: "text"; text: string }
         > = [];
         if (loaded.mime?.startsWith("image/")) {
-          // Image bytes are returned inline; the local path is withheld to avoid
-          // leaking filesystem details (home dir / username).
           content.push({
             type: "image",
             data: loaded.data.toString("base64"),
             mimeType: loaded.mime,
           });
-          content.push({ type: "text", text: JSON.stringify(base, null, 2) });
-        } else {
-          // Non-renderable types: return the local path so the artifact can be opened.
-          content.push({
-            type: "text",
-            text: JSON.stringify({ ...base, path: loaded.path }, null, 2),
-          });
         }
+        content.push({ type: "text", text: JSON.stringify(base, null, 2) });
         return { content };
       },
     );
@@ -410,12 +420,19 @@ export const coreModule: JournalModule = {
             );
           }
         }
-        return jsonResult({
-          id: args.id,
-          mode,
-          deleted: store.purgeEntry(args.id),
-          original_erased: originalErased,
-        });
+        // The original is already gone; if purge fails, the entry stays and the
+        // operation is safely retryable (a re-run re-purges; deleting an
+        // already-missing original is a no-op).
+        let deleted: boolean;
+        try {
+          deleted = store.purgeEntry(args.id);
+        } catch (err) {
+          ctx.log("failed to purge entry after erasing original:", err);
+          return errorResult(
+            "Erased the original but failed to purge the entry; run delete again to finish.",
+          );
+        }
+        return jsonResult({ id: args.id, mode, deleted, original_erased: originalErased });
       },
     );
 
