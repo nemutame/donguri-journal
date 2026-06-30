@@ -89,7 +89,7 @@ each).
 | `recall_related` | **Semantic** vector search — find past entries related in meaning, even with different wording. |
 | `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
 | `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
-| `get_original` | Fetch a stored original artifact by its `original_ref`. Images are returned inline so the LLM can re-view / re-extract; other types return the local path + metadata. |
+| `get_original` | Fetch a stored original artifact by its `original_ref`. Images are returned inline so the LLM can re-view / re-extract; other types return metadata only. |
 | `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend (the server warns on startup when the index no longer matches). Originals are never touched. |
 | `storage_stats` | Capacity: entry counts (active vs soft-deleted), vectors, breakdown by source kind / month, originals count + bytes, and DB size. |
 | `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
