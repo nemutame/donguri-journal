@@ -168,9 +168,10 @@ local:<sha256>`. Addressing is by hash only, so identical bytes dedup regardless
 of filename/MIME. Embeddings are always made from the extracted text, never the
 media itself.
 
-**Planned:** a `deleted_at` / tombstone column for soft delete, and a reference
-count (or orphan GC) so a shared original is removed only when its last
-referencing entry is purged.
+Soft delete uses a `deleted_at` tombstone column (reads exclude it; re-capturing
+identical content restores it). Hard delete purges the row and vector and — via
+reference counting — the original when its last referencing entry is gone, then
+VACUUMs so bytes do not linger.
 
 ---
 
@@ -187,8 +188,8 @@ Current (✅) and planned (🔜):
 | `surface_patterns` | Recurring themes (echoes of earlier entries) + chart + hints | ✅ |
 | `reindex` | Rebuild the vector index from originals after a backend change | ✅ |
 | `get_original` | Fetch a stored original by `original_ref` (images returned inline) | ✅ |
-| `storage_stats` | Capacity: counts, DB size, originals bytes, by source kind / month | 🔜 |
-| `delete_entry` | Delete an entry; `mode` = soft (recoverable) or hard (permanent) | 🔜 |
+| `storage_stats` | Capacity: counts, DB size, originals bytes, by source kind / month | ✅ |
+| `delete_entry` | Delete an entry; `mode` = soft (recoverable) or hard (permanent) | ✅ |
 | `open_management_ui` / `open_album` / `close_*` | Launch/stop an opt-in UI module | 🔜 |
 | `list_available_plugins` / `list_installed_plugins` | Plugin discovery | 🔜 |
 | `install_plugin` / `setup_plugin` / `enable_plugin` / `disable_plugin` / `uninstall_plugin` | Plugin lifecycle | 🔜 |
@@ -319,8 +320,8 @@ hardening.
   with PNG charts + structured data + presentation hints. ✅
 - **reindex** — rebuild vectors from originals on backend change. ✅
 - **Originals** — local content-addressed storage + `get_original`. ✅
-- **Management layer** — `storage_stats`, `delete_entry` (soft/hard), export,
-  management UI, album UI. 🔜
+- **Management layer** — `storage_stats` ✅ and `delete_entry` (soft/hard) ✅ are
+  done; export, management UI, and album UI are planned. 🔜
 - **Plugin platform** — contract → registry → hardening (see §9). 🔜
 - **Phase 2 — local-first sync** (separate, hard): CRDT (Automerge/Yjs) +
   pluggable transport (P2P via libp2p / relay / cloud storage), with end-to-end

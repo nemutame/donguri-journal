@@ -8,7 +8,7 @@
  *
  * NOTE: stdout is reserved for the MCP protocol. All logging goes to stderr.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -380,6 +380,57 @@ server.registerTool(
       content.push({ type: "text", text: JSON.stringify({ ...base, path: loaded.path }, null, 2) });
     }
     return { content };
+  },
+);
+
+server.registerTool(
+  "delete_entry",
+  {
+    title: "Delete an entry",
+    description:
+      "Delete a journal entry by id. `mode: 'soft'` (default) sets a recoverable tombstone — the " +
+      "entry stops appearing in query/recall but can be restored. `mode: 'hard'` permanently " +
+      "purges the entry, its vector, and its original (when no other entry references it) and " +
+      "VACUUMs the database — use this to truly erase something captured by mistake (e.g. a " +
+      "secret). Hard delete is irreversible; confirm with the user before using it.",
+    inputSchema: {
+      id: z.number().int().describe("The entry id to delete."),
+      mode: z
+        .enum(["soft", "hard"])
+        .optional()
+        .describe("'soft' (default, recoverable) or 'hard' (permanent erase)."),
+    },
+  },
+  async (args) => {
+    const mode = args.mode ?? "soft";
+    const result = store.deleteEntry(args.id, mode);
+    if (result.orphanedOriginalRef) {
+      await originalStore.delete(result.orphanedOriginalRef);
+    }
+    return jsonResult(result);
+  },
+);
+
+server.registerTool(
+  "storage_stats",
+  {
+    title: "Storage statistics",
+    description:
+      "Report how big the journal is: entry counts (active vs soft-deleted), vector count, " +
+      "breakdown by source kind and by month, the originals count + total bytes, and the database " +
+      "file size. Use this for capacity questions like 'how much have I stored?'.",
+    inputSchema: {},
+  },
+  async () => {
+    const entries = store.entryStats();
+    const originals = await originalStore.stats();
+    let dbBytes = 0;
+    try {
+      dbBytes = statSync(dbPath).size;
+    } catch {
+      dbBytes = 0;
+    }
+    return jsonResult({ entries, originals, db_bytes: dbBytes, db_path: dbPath });
   },
 );
 

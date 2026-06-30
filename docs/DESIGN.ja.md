@@ -165,8 +165,9 @@ MIME と元ファイル名を持つ `<sha256>.json` サイドカー。`original_
 アドレスはハッシュのみなので、filename/MIME に関わらず同一バイトは重複排除される。埋め込みは
 常に抽出テキストから作られ、メディア自体からは作らない。
 
-**計画:** ソフト削除用の `deleted_at` / tombstone カラム、および参照カウント（または孤児
-GC）。共有された原本は、それを参照する最後のエントリが purge された時だけ削除される。
+ソフト削除は `deleted_at` tombstone カラムを使う（読み取りからは除外、同一内容の再 capture で
+復活）。ハード削除は行とベクトルを物理削除し、参照カウント経由で最後の参照が消えた原本も
+削除し、残骸が残らないよう VACUUM する。
 
 ---
 
@@ -183,8 +184,8 @@ GC）。共有された原本は、それを参照する最後のエントリが
 | `surface_patterns` | 再発テーマ（過去エントリのこだま）＋チャート＋ヒント | ✅ |
 | `reindex` | バックエンド変更後に原本からベクトルインデックスを再構築 | ✅ |
 | `get_original` | `original_ref` で原本を取得（画像はインライン返却） | ✅ |
-| `storage_stats` | 容量: 件数・DB サイズ・原本バイト・種別/月別 | 🔜 |
-| `delete_entry` | エントリ削除。`mode` = soft（復元可）/ hard（完全消去） | 🔜 |
+| `storage_stats` | 容量: 件数・DB サイズ・原本バイト・種別/月別 | ✅ |
+| `delete_entry` | エントリ削除。`mode` = soft（復元可）/ hard（完全消去） | ✅ |
 | `open_management_ui` / `open_album` / `close_*` | opt-in UI モジュールの起動/停止 | 🔜 |
 | `list_available_plugins` / `list_installed_plugins` | プラグイン discovery | 🔜 |
 | `install_plugin` / `setup_plugin` / `enable_plugin` / `disable_plugin` / `uninstall_plugin` | プラグインのライフサイクル | 🔜 |
@@ -302,8 +303,8 @@ sequenceDiagram
   PNG チャート＋構造化データ＋提示ヒント。✅
 - **reindex** — バックエンド変更時に原本からベクトル再構築。✅
 - **原本保存** — ローカル content-addressed ストア＋ `get_original`。✅
-- **管理レイヤ** — `storage_stats`、`delete_entry`（soft/hard）、エクスポート、管理 UI、
-  アルバム UI。🔜
+- **管理レイヤ** — `storage_stats` ✅ と `delete_entry`（soft/hard）✅ は完了。
+  エクスポート・管理 UI・アルバム UI は計画。🔜
 - **プラグイン基盤** — 契約 → レジストリ → ハードニング（§9）。🔜
 - **Phase 2 — ローカルファースト同期**（独立・難）: CRDT（Automerge/Yjs）＋差し替え可能
   トランスポート（libp2p による P2P / リレー / クラウドストレージ）、E2E 暗号化を最初から

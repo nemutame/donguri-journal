@@ -90,6 +90,8 @@ npm run build
 | `surface_patterns` | 再発テーマ——最近のエントリが**過去のどれと「こだま」するか**。距離付きのクラスタ＋ PNG チャート＋提示ヒントを返す。 |
 | `get_original` | `original_ref` で保存済みの原本を取得。画像はインラインで返し（LLM が再閲覧・再抽出可能）、それ以外はローカルパス＋メタを返す。 |
 | `reindex` | 保守——現在の埋め込みバックエンドで原本からベクトルインデックスを再構築。バックエンド変更後に実行（不一致時は起動時に警告）。原本は一切触らない。 |
+| `storage_stats` | 容量: エントリ数（有効/ソフト削除）・ベクトル数・種別/月別・原本の件数とバイト・DB サイズ。 |
+| `delete_entry` | エントリ削除——`mode: soft`（復元可能な tombstone）/ `hard`（entry＋ベクトル＋孤児原本を完全消去し VACUUM）。 |
 
 `query_entries` と `recall_related` は意図的に別経路です（LLM が問いに応じて、正確な
 絞り込みか意味かを選ぶ）。`generate_review` と `surface_patterns` は、描画済みの PNG
