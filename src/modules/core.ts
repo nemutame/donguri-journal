@@ -156,11 +156,19 @@ export const coreModule: JournalModule = {
           mime: original_mime,
           filename: original_filename,
         });
-        // Report the ref actually stored: if the row already had one,
-        // attachOriginalIfAbsent is a no-op and we return the existing value.
         const attached = store.attachOriginalIfAbsent(result.id, saved.ref);
-        const ref = attached ? saved.ref : (store.getOriginalRef(result.id) ?? saved.ref);
-        return jsonResult({ ...result, original_ref: ref });
+        if (attached) {
+          return jsonResult({ ...result, original_ref: saved.ref });
+        }
+        // Not attached: either the row already had an original (return that), or
+        // the row vanished between insert and save — report honestly rather than
+        // claim a ref we didn't store. The unreferenced content-addressed blob is
+        // left for a future orphan sweep (never wrongly deleted, as it may be shared).
+        const existing = store.getOriginalRef(result.id);
+        if (existing) {
+          return jsonResult({ ...result, original_ref: existing });
+        }
+        return errorResult("The entry was removed before its original could be attached.");
       },
     );
 
