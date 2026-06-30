@@ -119,11 +119,30 @@ export class LocalDirStore implements OriginalStore {
       await mkdir(this.#baseDir, { recursive: true });
       await writeFile(blobPath, input.data);
     }
-    if (!existsSync(metaPath)) {
-      const meta: SidecarMeta = { mime, filename: input.filename };
-      await writeFile(metaPath, JSON.stringify(meta));
+
+    // Create the sidecar, or backfill fields a previous save left empty (e.g. a
+    // first save without a MIME followed by one that knows it).
+    let existing: SidecarMeta = {};
+    if (existsSync(metaPath)) {
+      try {
+        existing = JSON.parse(await readFile(metaPath, "utf8")) as SidecarMeta;
+      } catch {
+        // Corrupt sidecar — rewrite it from the current input.
+      }
     }
-    return { ref: `local:${sha}`, bytes: input.data.length, mime };
+    const merged: SidecarMeta = {
+      mime: existing.mime ?? mime,
+      filename: existing.filename ?? input.filename,
+    };
+    if (
+      !existsSync(metaPath) ||
+      merged.mime !== existing.mime ||
+      merged.filename !== existing.filename
+    ) {
+      await mkdir(this.#baseDir, { recursive: true });
+      await writeFile(metaPath, JSON.stringify(merged));
+    }
+    return { ref: `local:${sha}`, bytes: input.data.length, mime: merged.mime };
   }
 
   async get(ref: string): Promise<LoadedOriginal | null> {

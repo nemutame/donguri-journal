@@ -60,6 +60,7 @@ On first use the embedding model (~90 MB) is downloaded and cached automatically
 | --- | --- | --- |
 | `JOURNAL_DB_PATH` | `~/.journal-mcp/journal.db` | Path to the SQLite database file. |
 | `JOURNAL_ORIGINALS_DIR` | `~/.journal-mcp/originals` | Directory where original artifacts (images/audio/files) are stored, content-addressed. |
+| `JOURNAL_MAX_ORIGINAL_BYTES` | `26214400` (25 MiB) | Max accepted size of a single original artifact; larger `original_data` is rejected. |
 
 `stdout` is reserved for the MCP protocol; all logs go to `stderr`.
 

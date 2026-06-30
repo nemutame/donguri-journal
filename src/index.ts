@@ -35,6 +35,12 @@ store.init();
 
 const originalStore = createOriginalStore();
 
+/** Max accepted size of a single original artifact (decoded bytes). */
+const MAX_ORIGINAL_BYTES = (() => {
+  const v = Number(process.env.JOURNAL_MAX_ORIGINAL_BYTES);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 25 * 1024 * 1024;
+})();
+
 const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 
 function jsonResult(payload: unknown) {
@@ -146,6 +152,12 @@ server.registerTool(
   async (args) => {
     const { original_data, original_mime, original_filename, ...entry } = args;
     if (original_data && original_data.length > 0) {
+      // Reject oversized payloads before allocating the decoded buffer.
+      if (Math.ceil((original_data.length * 3) / 4) > MAX_ORIGINAL_BYTES) {
+        return errorResult(
+          `original_data exceeds the maximum allowed size (${MAX_ORIGINAL_BYTES} bytes)`,
+        );
+      }
       const bytes = decodeBase64Strict(original_data);
       if (!bytes) {
         return errorResult("original_data is not valid base64");
