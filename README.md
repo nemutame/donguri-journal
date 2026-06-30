@@ -59,6 +59,8 @@ On first use the embedding model (~90 MB) is downloaded and cached automatically
 | Env var | Default | Meaning |
 | --- | --- | --- |
 | `JOURNAL_DB_PATH` | `~/.journal-mcp/journal.db` | Path to the SQLite database file. |
+| `JOURNAL_ORIGINALS_DIR` | `~/.journal-mcp/originals` | Directory where original artifacts (images/audio/files) are stored, content-addressed. |
+| `JOURNAL_MAX_ORIGINAL_BYTES` | `26214400` (25 MiB) | Max accepted size of a single original artifact; larger `original_data` is rejected. |
 
 `stdout` is reserved for the MCP protocol; all logs go to `stderr`.
 
@@ -68,11 +70,12 @@ The tool descriptions are written as instructions for the front-end LLM (when to
 
 | Tool | Purpose |
 | --- | --- |
-| `capture` | Stash a memory now. Low-friction; for media, the LLM passes extracted text + a pointer to the original. Auto-deduplicated. |
+| `capture` | Stash a memory now. Low-friction; for media, the LLM passes extracted text plus the raw original bytes (`original_data`), which the server stores verbatim. Auto-deduplicated. |
 | `query_entries` | **Structured** lookup by date range / tag / source kind. For precise, filterable questions and reviews. |
 | `recall_related` | **Semantic** vector search — find past entries related in meaning, even with different wording. |
 | `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
 | `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
+| `get_original` | Fetch a stored original artifact by its `original_ref`. Images are returned inline so the LLM can re-view / re-extract; other types return the local path + metadata. |
 | `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend — a different model **or** a different implementation (the server warns on startup when the index no longer matches). Originals are never touched. |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the LLM picks
@@ -89,6 +92,10 @@ Two layers, so the index is always rebuildable and originals are never lost:
   extraction can be redone later.
 - **`vec_entries`** — a disposable [sqlite-vec](https://github.com/asg017/sqlite-vec) vector index.
   The active embedding model/dim is recorded so switching backends can trigger a reindex.
+- **originals** — when the LLM sends an artifact's bytes, they're saved verbatim in a local
+  content-addressed store (`OriginalStore`, default: a local directory), and `original_ref`
+  points at them. The backend is pluggable; the server never interprets the bytes. Embeddings
+  are always made from the extracted text, never the media itself.
 
 ## Development / 開発
 

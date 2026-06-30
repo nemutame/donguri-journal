@@ -16,6 +16,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { JournalStore } from "./db/store.js";
 import { createEmbeddingProvider } from "./embedding/provider.js";
+import { createOriginalStore } from "./originals/store.js";
 import { surfacePatterns } from "./review/patterns.js";
 import { generateReview } from "./review/review.js";
 
@@ -32,10 +33,35 @@ const embedder = createEmbeddingProvider();
 const store = new JournalStore(dbPath, embedder);
 store.init();
 
+const originalStore = createOriginalStore();
+
+/** Max accepted size of a single original artifact (decoded bytes). */
+const MAX_ORIGINAL_BYTES = (() => {
+  const v = Number(process.env.JOURNAL_MAX_ORIGINAL_BYTES);
+  return Number.isFinite(v) && v > 0 ? Math.floor(v) : 25 * 1024 * 1024;
+})();
+
 const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 
 function jsonResult(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+}
+
+function errorResult(message: string) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
+  };
+}
+
+/** Decode strict, canonical base64; returns null for malformed input. */
+function decodeBase64Strict(input: string): Buffer | null {
+  const cleaned = input.replace(/\s+/g, "");
+  if (cleaned.length === 0 || cleaned.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
+    return null;
+  }
+  const buf = Buffer.from(cleaned, "base64");
+  return buf.toString("base64") === cleaned ? buf : null;
 }
 
 /** Result with an optional PNG chart followed by the structured JSON payload. */
@@ -60,9 +86,13 @@ server.registerTool(
       "event, a decision, a link, a photo, a voice note — without interrogating them for " +
       "details. For images / audio / URLs, YOU (the multimodal model) extract a faithful text " +
       "description and pass it as `body`; this server does not process media. Put a pointer to " +
-      "the original (file path / URL) in `original_ref`. Set `occurred_at` when the event " +
-      "happened at a different time than now (e.g. 'yesterday', 'last week'); otherwise it " +
-      "defaults to the capture time. Identical captures are de-duplicated automatically.",
+      "the original (file path / URL) in `original_ref`. When the user shares an actual file " +
+      "(an attached image, an audio clip), ALSO send the raw bytes as base64 in `original_data` " +
+      "(with `original_mime` / `original_filename`): the server stores the verbatim original " +
+      "locally and sets `original_ref` for you, so it can be re-viewed later via get_original. " +
+      "Set `occurred_at` when the event happened at a different time than now (e.g. 'yesterday', " +
+      "'last week'); otherwise it defaults to the capture time. Identical captures are " +
+      "de-duplicated automatically.",
     inputSchema: {
       body: z
         .string()
@@ -78,7 +108,25 @@ server.registerTool(
       original_ref: z
         .string()
         .optional()
-        .describe("Pointer to the verbatim original artifact (file path or URL), if any."),
+        .describe(
+          "Pointer to an externally-held original (file path or URL). Omit when sending " +
+            "`original_data` — the server fills this in with the stored reference.",
+        ),
+      original_data: z
+        .string()
+        .optional()
+        .describe(
+          "Base64-encoded raw bytes of the original artifact (image/audio/file). When present, " +
+            "the server saves it verbatim and overwrites `original_ref` with the stored ref.",
+        ),
+      original_mime: z
+        .string()
+        .optional()
+        .describe("MIME type of `original_data`, e.g. 'image/png', 'audio/mpeg'."),
+      original_filename: z
+        .string()
+        .optional()
+        .describe("Optional original filename; used to pick the stored file extension."),
       extraction_state: z
         .enum(["verbatim", "llm_extracted"])
         .optional()
@@ -102,7 +150,26 @@ server.registerTool(
     },
   },
   async (args) => {
-    const result = await store.insert(args);
+    const { original_data, original_mime, original_filename, ...entry } = args;
+    if (original_data && original_data.length > 0) {
+      // Reject oversized payloads before allocating the decoded buffer.
+      if (Math.ceil((original_data.length * 3) / 4) > MAX_ORIGINAL_BYTES) {
+        return errorResult(
+          `original_data exceeds the maximum allowed size (${MAX_ORIGINAL_BYTES} bytes)`,
+        );
+      }
+      const bytes = decodeBase64Strict(original_data);
+      if (!bytes) {
+        return errorResult("original_data is not valid base64");
+      }
+      const saved = await originalStore.save({
+        data: bytes,
+        mime: original_mime,
+        filename: original_filename,
+      });
+      entry.original_ref = saved.ref;
+    }
+    const result = await store.insert(entry);
     return jsonResult(result);
   },
 );
@@ -277,6 +344,45 @@ server.registerTool(
   async () => {
     const result = await store.reindex();
     return jsonResult(result);
+  },
+);
+
+server.registerTool(
+  "get_original",
+  {
+    title: "Fetch a stored original artifact (re-view the acorn)",
+    description:
+      "Retrieve the verbatim original (image / audio / file) that was saved at capture time, by " +
+      "its `original_ref` (e.g. 'local:<hash>.<ext>' from an entry). Images are returned inline " +
+      "so you (the multimodal LLM) can look again and, if needed, RE-EXTRACT text from them; " +
+      "other types return the local file path and metadata. Use this after recall_related / " +
+      "query_entries surfaces an entry whose original you want to actually see again.",
+    inputSchema: {
+      original_ref: z
+        .string()
+        .min(1)
+        .describe("The entry's original_ref, e.g. 'local:<sha256>.<ext>'."),
+    },
+  },
+  async ({ original_ref }) => {
+    const loaded = await originalStore.get(original_ref);
+    if (!loaded) {
+      return jsonResult({ found: false, original_ref });
+    }
+    const base = { found: true, original_ref, mime: loaded.mime, bytes: loaded.data.length };
+    const content: Array<
+      { type: "image"; data: string; mimeType: string } | { type: "text"; text: string }
+    > = [];
+    if (loaded.mime?.startsWith("image/")) {
+      // Image bytes are returned inline; the local path is withheld to avoid
+      // leaking filesystem details (home dir / username).
+      content.push({ type: "image", data: loaded.data.toString("base64"), mimeType: loaded.mime });
+      content.push({ type: "text", text: JSON.stringify(base, null, 2) });
+    } else {
+      // Non-renderable types: return the local path so the artifact can be opened.
+      content.push({ type: "text", text: JSON.stringify({ ...base, path: loaded.path }, null, 2) });
+    }
+    return { content };
   },
 );
 
