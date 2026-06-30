@@ -3,7 +3,7 @@
 language: ja-JP
 early_access: false
 reviews:
-  profile: chill
+  profile: assertive
   # Block merging until requested changes are resolved (merge gate).
   request_changes_workflow: true
   high_level_summary: true
