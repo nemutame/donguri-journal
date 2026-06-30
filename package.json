@@ -1,6 +1,6 @@
 {
   "name": "donguri-journal",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Local-first, time-aware journaling memory server over MCP",
   "license": "MIT",
   "author": "Nemutame",
@@ -23,10 +23,14 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^11.10.0",
+    "sqlite-vec": "^0.1.9",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "typescript": "^5.7.2"
   }
