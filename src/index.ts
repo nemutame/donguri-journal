@@ -417,8 +417,10 @@ server.registerTool(
       try {
         originalErased = await originalStore.delete(peek.original_ref);
       } catch (err) {
+        // Log details to stderr; keep the tool output generic (no raw exception).
+        console.error("[donguri-journal] failed to erase original during hard delete:", err);
         return errorResult(
-          `Failed to erase the original; entry left intact so you can retry: ${String(err)}`,
+          "Failed to erase the original; the entry was left intact so you can retry.",
         );
       }
     }
