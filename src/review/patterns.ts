@@ -54,8 +54,10 @@ export async function surfacePatterns(
 
   const echoes: Echo[] = [];
   for (const entry of recent) {
-    // Fetch a few extra neighbours, then keep only OLDER, close-enough ones.
-    const neighbours = await store.recall(entry.body, perEntry + 1);
+    // Over-fetch: self and newer entries can crowd the top neighbours, so we
+    // need a larger candidate pool to still find `perEntry` OLDER echoes.
+    const candidateK = Math.min(100, perEntry * 4 + 5);
+    const neighbours = await store.recall(entry.body, candidateK);
     const related = neighbours
       .filter(
         (h) => h.id !== entry.id && h.created_at < entry.created_at && h.distance <= maxDistance,

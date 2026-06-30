@@ -3,12 +3,13 @@
  * structured data + a rendered PNG activity chart + presentation hints, so the
  * front-end LLM can present a reflective review (not just a markdown list).
  */
-import type {
-  DayCount,
-  JournalStore,
-  ReviewTimeWindow,
-  SourceKindCount,
-  TagCount,
+import {
+  type DayCount,
+  type JournalStore,
+  normalizeTimestamp,
+  type ReviewTimeWindow,
+  type SourceKindCount,
+  type TagCount,
 } from "../db/store.js";
 import { barChartSvg, renderPng } from "./charts.js";
 import { type ReviewPeriod, type ReviewWindow, computeWindow } from "./window.js";
@@ -44,10 +45,24 @@ export async function generateReview(
 ): Promise<ReviewOutput> {
   const timeField = input.time_field === "occurred_at" ? "occurred_at" : "created_at";
 
-  const window: ReviewWindow =
-    input.since && input.until
-      ? { since: input.since, until: input.until, label: `${input.since}–${input.until} (custom)` }
-      : computeWindow(input.period ?? "week", input.anchor);
+  // A custom window needs both bounds; one-sided input must fail loudly rather
+  // than silently falling back to `period` and returning a different range.
+  const { since, until } = input;
+  if ((since === undefined) !== (until === undefined)) {
+    throw new Error("A custom window requires both `since` and `until` (or neither — use `period`).");
+  }
+
+  let window: ReviewWindow;
+  if (since !== undefined && until !== undefined) {
+    const s = normalizeTimestamp(since);
+    const u = normalizeTimestamp(until);
+    if (s > u) {
+      throw new Error(`Invalid custom window: since (${s}) is after until (${u}).`);
+    }
+    window = { since: s, until: u, label: `${s}–${u} (custom)` };
+  } else {
+    window = computeWindow(input.period ?? "week", input.anchor);
+  }
 
   const filter: ReviewTimeWindow = {
     since: window.since,

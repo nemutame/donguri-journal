@@ -172,11 +172,12 @@ server.registerTool(
     description:
       "Produce a reflective review of a period — call this when the user wants to look back " +
       "('how was my week?', 'review this month', daily/weekly/monthly check-ins, BuJo-style " +
-      "migration). Returns an ATTACHED PNG chart of activity over time, structured aggregates " +
-      "(totals, busiest day, source kinds, top tags), and presentation hints. Show the chart " +
-      "and weave the aggregates into a short reflective summary — do not just dump the numbers. " +
-      "Pick `period` (day/week/month) or pass an explicit since/until range. `time_field` " +
-      "selects when-captured vs when-it-happened.",
+      "migration). Returns structured aggregates (totals, busiest day, source kinds, top tags), " +
+      "presentation hints, and — when there are entries to plot — an attached PNG chart of " +
+      "activity over time (otherwise structured data only). Show the chart if present and weave " +
+      "the aggregates into a short reflective summary — do not just dump the numbers. Pick " +
+      "`period` (day/week/month), or pass BOTH `since` and `until` for an explicit custom range " +
+      "(one without the other is an error). `time_field` selects when-captured vs when-it-happened.",
     inputSchema: {
       period: z
         .enum(["day", "week", "month"])
@@ -222,9 +223,10 @@ server.registerTool(
       "Detect recurring themes — recent entries that echo something the user wrote BEFORE. Call " +
       "this when the user reflects on habits or patterns ('do I keep coming back to this?', " +
       "'am I in a rut?') or proactively during reviews. For each recent entry it finds " +
-      "semantically similar older entries; returns the echo clusters (with distances), an " +
-      "ATTACHED PNG chart of the strongest echoes, and presentation hints. Each echo is a " +
-      "CANDIDATE recurrence — judge relevance yourself and present gently, don't over-claim.",
+      "semantically similar older entries; returns the echo clusters (with distances), " +
+      "presentation hints, and — when any echoes are found — an attached PNG chart of the " +
+      "strongest echoes (otherwise structured data only). Each echo is a CANDIDATE recurrence — " +
+      "judge relevance yourself and present gently, don't over-claim.",
     inputSchema: {
       lookback_days: z
         .number()
