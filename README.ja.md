@@ -9,7 +9,7 @@
 このサーバーはその背後にある永続的な「記憶器官」です。会話の流れの中で気軽に
 **capture（捕捉）** し、時間を越えて **recall（想起）** します。
 
-> 設計思想と全体ロードマップは **[docs/DESIGN.md](docs/DESIGN.md)** にあります。
+> 設計思想と全体ロードマップは **[docs/DESIGN.ja.md](docs/DESIGN.ja.md)** にあります。
 
 ---
 
@@ -114,7 +114,7 @@ npm run build
 ## コントリビュート
 
 歓迎します——**日本語での Issue / PR でも構いません**。大きめの変更を提案する前に、
-設計意図を [docs/DESIGN.md](docs/DESIGN.md) で確認してください。
+設計意図を [docs/DESIGN.ja.md](docs/DESIGN.ja.md)（英語版: [docs/DESIGN.md](docs/DESIGN.md)）で確認してください。
 
 ```bash
 npm run lint        # Biome（lint + フォーマットチェック）
