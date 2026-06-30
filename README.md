@@ -22,7 +22,7 @@ in the flow of conversation, **recall** them across time.
   [transformers.js](https://github.com/xenova/transformers.js) (`Xenova/all-MiniLM-L6-v2`, 384-dim).
   No Ollama, no manual model pull. The backend is swappable for power users.
 
-> **Status:** Phase 1 (core capture / recall). Local-first sync (CRDT + E2E encryption) is a later, independent phase.
+> **Status:** Phase 1 (core capture / recall) + Phase 1.5 (review / insight tools). Local-first sync (CRDT + E2E encryption) is a later, independent phase.
 
 ## Requirements / 必要環境
 
@@ -71,9 +71,13 @@ The tool descriptions are written as instructions for the front-end LLM (when to
 | `capture` | Stash a memory now. Low-friction; for media, the LLM passes extracted text + a pointer to the original. Auto-deduplicated. |
 | `query_entries` | **Structured** lookup by date range / tag / source kind. For precise, filterable questions and reviews. |
 | `recall_related` | **Semantic** vector search — find past entries related in meaning, even with different wording. |
+| `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
+| `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the LLM picks
-based on the question (precise filter vs. meaning).
+based on the question (precise filter vs. meaning). `generate_review` and `surface_patterns`
+return rendered PNG charts alongside structured data and presentation hints, so the LLM can
+present a rich, reflective summary rather than a bare list.
 
 ## How it stores things / 保存のしくみ
 
