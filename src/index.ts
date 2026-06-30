@@ -79,8 +79,12 @@ server.registerTool(
         .describe("Optional structured metadata (e.g. mood, location, people)."),
       occurred_at: z
         .string()
+        .datetime({ offset: true })
         .optional()
-        .describe("ISO-8601 time the event actually happened, if different from now."),
+        .describe(
+          "ISO-8601 timestamp (e.g. 2026-06-20T09:00:00Z) of when the event actually " +
+            "happened, if different from now. Must include a time so range queries stay correct.",
+        ),
     },
   },
   async (args) => {
@@ -101,8 +105,16 @@ server.registerTool(
       "the event happened). For meaning-based 'have I thought about X before' questions, use " +
       "recall_related instead.",
     inputSchema: {
-      since: z.string().optional().describe("ISO-8601 lower bound (inclusive)."),
-      until: z.string().optional().describe("ISO-8601 upper bound (inclusive)."),
+      since: z
+        .string()
+        .datetime({ offset: true })
+        .optional()
+        .describe("ISO-8601 timestamp; lower bound (inclusive)."),
+      until: z
+        .string()
+        .datetime({ offset: true })
+        .optional()
+        .describe("ISO-8601 timestamp; upper bound (inclusive)."),
       source_kind: z.string().optional().describe("Filter by source kind."),
       tag: z.string().optional().describe("Filter to entries carrying this tag."),
       time_field: z
