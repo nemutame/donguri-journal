@@ -353,15 +353,12 @@ server.registerTool(
     title: "Fetch a stored original artifact (re-view the acorn)",
     description:
       "Retrieve the verbatim original (image / audio / file) that was saved at capture time, by " +
-      "its `original_ref` (e.g. 'local:<hash>.<ext>' from an entry). Images are returned inline " +
+      "its `original_ref` (e.g. 'local:<sha256>' from an entry). Images are returned inline " +
       "so you (the multimodal LLM) can look again and, if needed, RE-EXTRACT text from them; " +
       "other types return the local file path and metadata. Use this after recall_related / " +
       "query_entries surfaces an entry whose original you want to actually see again.",
     inputSchema: {
-      original_ref: z
-        .string()
-        .min(1)
-        .describe("The entry's original_ref, e.g. 'local:<sha256>.<ext>'."),
+      original_ref: z.string().min(1).describe("The entry's original_ref, e.g. 'local:<sha256>'."),
     },
   },
   async ({ original_ref }) => {
