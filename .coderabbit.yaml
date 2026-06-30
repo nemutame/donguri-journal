@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration — https://docs.coderabbit.ai/getting-started/configure-coderabbit
+language: ja-JP
+early_access: false
+reviews:
+  profile: chill
+  # Block merging until requested changes are resolved (merge gate).
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!dist/**"
+    - "!**/*.db"
+  # Project-specific guardrails — these encode donguri-journal's binding design
+  # decisions so the review gate flags violations.
+  path_instructions:
+    - path: "src/**/*.ts"
+      instructions: >-
+        This is an MCP server. stdout is reserved for the MCP protocol — all
+        logging MUST go to stderr (console.error), never console.log. Originals
+        must never be destroyed; the vector index is disposable and rebuildable.
+        Do NOT add server-side vision/audio models (VLM/Whisper): a multimodal
+        front-end LLM is a hard requirement and supplies extracted text. Keep
+        structured lookup (query_entries / SQL) and semantic recall
+        (recall_related / vectors) as separate retrieval paths — do not merge
+        them. Tool descriptions are product surface (instructions for the
+        front-end LLM), so review their wording, not just the code.
+  tools:
+    biome:
+      enabled: true
+chat:
+  auto_reply: true
