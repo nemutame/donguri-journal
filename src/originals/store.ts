@@ -216,9 +216,12 @@ export class LocalDirStore implements OriginalStore {
  * Choose an original store. Today this is always the local directory; an Eagle
  * backend (when JOURNAL_EAGLE_API is set) can be slotted in here later.
  */
-export function createOriginalStore(): OriginalStore {
+export function createOriginalStore(baseDir?: string): OriginalStore {
+  if (baseDir && baseDir.length > 0) {
+    return new LocalDirStore(baseDir);
+  }
   const fromEnv = process.env.JOURNAL_ORIGINALS_DIR;
-  const baseDir =
+  const dir =
     fromEnv && fromEnv.length > 0 ? fromEnv : join(homedir(), ".journal-mcp", "originals");
-  return new LocalDirStore(baseDir);
+  return new LocalDirStore(dir);
 }
