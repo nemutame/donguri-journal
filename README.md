@@ -91,6 +91,8 @@ each).
 | `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
 | `get_original` | Fetch a stored original artifact by its `original_ref`. Images are returned inline so the LLM can re-view / re-extract; other types return the local path + metadata. |
 | `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend (the server warns on startup when the index no longer matches). Originals are never touched. |
+| `storage_stats` | Capacity: entry counts (active vs soft-deleted), vectors, breakdown by source kind / month, originals count + bytes, and DB size. |
+| `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the
 LLM picks based on the question (precise filter vs. meaning). `generate_review` and

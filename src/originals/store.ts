@@ -17,7 +17,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -41,11 +41,20 @@ export interface LoadedOriginal {
   path: string;
 }
 
+export interface OriginalsStats {
+  count: number;
+  bytes: number;
+}
+
 export interface OriginalStore {
   readonly kind: string;
   save(input: SaveOriginalInput): Promise<SavedOriginal>;
   /** Load a previously saved original, or null if the ref is unknown to this store. */
   get(ref: string): Promise<LoadedOriginal | null>;
+  /** Remove an original (and its sidecar). Returns true if a blob was deleted. */
+  delete(ref: string): Promise<boolean>;
+  /** Aggregate count + total bytes of stored originals. */
+  stats(): Promise<OriginalsStats>;
 }
 
 const EXT_TO_MIME: Record<string, string> = {
@@ -166,6 +175,40 @@ export class LocalDirStore implements OriginalStore {
       }
     }
     return { data, mime, path: blobPath };
+  }
+
+  async delete(ref: string): Promise<boolean> {
+    const prefix = "local:";
+    if (!ref.startsWith(prefix)) return false;
+    const sha = ref.slice(prefix.length);
+    if (!/^[a-f0-9]{64}$/.test(sha)) return false;
+    const blobPath = join(this.#baseDir, sha);
+    const metaPath = join(this.#baseDir, `${sha}.json`);
+    let removed = false;
+    if (existsSync(blobPath)) {
+      await unlink(blobPath);
+      removed = true;
+    }
+    if (existsSync(metaPath)) {
+      await unlink(metaPath);
+    }
+    return removed;
+  }
+
+  async stats(): Promise<OriginalsStats> {
+    if (!existsSync(this.#baseDir)) return { count: 0, bytes: 0 };
+    const names = await readdir(this.#baseDir);
+    let count = 0;
+    let bytes = 0;
+    for (const name of names) {
+      if (name.endsWith(".json")) continue;
+      const info = await stat(join(this.#baseDir, name));
+      if (info.isFile()) {
+        count += 1;
+        bytes += info.size;
+      }
+    }
+    return { count, bytes };
   }
 }
 

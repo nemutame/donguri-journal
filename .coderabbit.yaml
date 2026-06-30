@@ -24,8 +24,12 @@ reviews:
     - path: "src/**/*.ts"
       instructions: >-
         This is an MCP server. stdout is reserved for the MCP protocol — all
-        logging MUST go to stderr (console.error), never console.log. Originals
-        must never be destroyed; the vector index is disposable and rebuildable.
+        logging MUST go to stderr (console.error), never console.log. The system
+        must never destroy originals IMPLICITLY: extraction and reindex must be
+        lossless and rebuildable from originals. The only exception is an explicit
+        owner-initiated hard delete (delete_entry mode:hard), which intentionally
+        erases an entry and its now-unreferenced original. The vector index is
+        disposable and rebuildable.
         Do NOT add server-side vision/audio models (VLM/Whisper): a multimodal
         front-end LLM is a hard requirement and supplies extracted text. Keep
         structured lookup (query_entries / SQL) and semantic recall

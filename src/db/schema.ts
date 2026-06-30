@@ -13,7 +13,7 @@
  */
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export function createSchema(db: Database.Database, dim: number): void {
   if (!Number.isInteger(dim) || dim <= 0) {
@@ -31,7 +31,8 @@ export function createSchema(db: Database.Database, dim: number): void {
       meta TEXT NOT NULL DEFAULT '{}',
       occurred_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
-      content_hash TEXT NOT NULL
+      content_hash TEXT NOT NULL,
+      deleted_at TEXT
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_content_hash ON entries(content_hash);
@@ -54,4 +55,17 @@ export function createSchema(db: Database.Database, dim: number): void {
   // `dim` is validated as a positive integer above, so it is safe to inline.
   // The dimension of a vec0 column is fixed at creation time.
   db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS vec_entries USING vec0(embedding float[${dim}]);`);
+}
+
+/**
+ * Apply idempotent migrations for databases created by an older schema.
+ * Safe to run on every startup.
+ */
+export function migrate(db: Database.Database): void {
+  const columns = db.prepare("PRAGMA table_info(entries)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "deleted_at")) {
+    db.exec("ALTER TABLE entries ADD COLUMN deleted_at TEXT");
+  }
+  // Created here (not in createSchema) so it runs after the column is guaranteed.
+  db.exec("CREATE INDEX IF NOT EXISTS idx_entries_deleted_at ON entries(deleted_at)");
 }

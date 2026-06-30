@@ -8,7 +8,7 @@
  *
  * NOTE: stdout is reserved for the MCP protocol. All logging goes to stderr.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -380,6 +380,81 @@ server.registerTool(
       content.push({ type: "text", text: JSON.stringify({ ...base, path: loaded.path }, null, 2) });
     }
     return { content };
+  },
+);
+
+server.registerTool(
+  "delete_entry",
+  {
+    title: "Delete an entry",
+    description:
+      "Delete a journal entry by id. `mode: 'soft'` (default) sets a recoverable tombstone — the " +
+      "entry stops appearing in query/recall but can be restored. `mode: 'hard'` permanently " +
+      "purges the entry, its vector, and its original (when no other entry references it) and " +
+      "VACUUMs the database — use this to truly erase something captured by mistake (e.g. a " +
+      "secret). Hard delete is irreversible; confirm with the user before using it.",
+    inputSchema: {
+      id: z.number().int().describe("The entry id to delete."),
+      mode: z
+        .enum(["soft", "hard"])
+        .optional()
+        .describe("'soft' (default, recoverable) or 'hard' (permanent erase)."),
+    },
+  },
+  async (args) => {
+    const mode = args.mode ?? "soft";
+    if (mode === "soft") {
+      return jsonResult({ id: args.id, mode, deleted: store.softDelete(args.id) });
+    }
+    // Hard delete: erase the orphaned original FIRST so a failure can't leave its
+    // bytes behind, then purge the row + vector and VACUUM.
+    const peek = store.peekHardDelete(args.id);
+    if (!peek.exists) {
+      return jsonResult({ id: args.id, mode, deleted: false });
+    }
+    let originalErased: boolean | null = null;
+    if (peek.orphan && peek.original_ref) {
+      try {
+        originalErased = await originalStore.delete(peek.original_ref);
+      } catch (err) {
+        // Log details to stderr; keep the tool output generic (no raw exception).
+        console.error("[donguri-journal] failed to erase original during hard delete:", err);
+        return errorResult(
+          "Failed to erase the original; the entry was left intact so you can retry.",
+        );
+      }
+    }
+    return jsonResult({
+      id: args.id,
+      mode,
+      deleted: store.purgeEntry(args.id),
+      original_erased: originalErased,
+    });
+  },
+);
+
+server.registerTool(
+  "storage_stats",
+  {
+    title: "Storage statistics",
+    description:
+      "Report how big the journal is: entry counts (active vs soft-deleted), vector count, " +
+      "breakdown by source kind and by month, the originals count + total bytes, and the database " +
+      "file size. Use this for capacity questions like 'how much have I stored?'.",
+    inputSchema: {},
+  },
+  async () => {
+    const entries = store.entryStats();
+    const originals = await originalStore.stats();
+    // null (not 0) distinguishes a stat error from a genuinely empty DB; the
+    // absolute path is withheld to avoid leaking local filesystem details.
+    let dbBytes: number | null = null;
+    try {
+      dbBytes = statSync(dbPath).size;
+    } catch {
+      dbBytes = null;
+    }
+    return jsonResult({ entries, originals, db_bytes: dbBytes });
   },
 );
 
