@@ -403,11 +403,31 @@ server.registerTool(
   },
   async (args) => {
     const mode = args.mode ?? "soft";
-    const result = store.deleteEntry(args.id, mode);
-    if (result.orphanedOriginalRef) {
-      await originalStore.delete(result.orphanedOriginalRef);
+    if (mode === "soft") {
+      return jsonResult({ id: args.id, mode, deleted: store.softDelete(args.id) });
     }
-    return jsonResult(result);
+    // Hard delete: erase the orphaned original FIRST so a failure can't leave its
+    // bytes behind, then purge the row + vector and VACUUM.
+    const peek = store.peekHardDelete(args.id);
+    if (!peek.exists) {
+      return jsonResult({ id: args.id, mode, deleted: false });
+    }
+    let originalErased: boolean | null = null;
+    if (peek.orphan && peek.original_ref) {
+      try {
+        originalErased = await originalStore.delete(peek.original_ref);
+      } catch (err) {
+        return errorResult(
+          `Failed to erase the original; entry left intact so you can retry: ${String(err)}`,
+        );
+      }
+    }
+    return jsonResult({
+      id: args.id,
+      mode,
+      deleted: store.purgeEntry(args.id),
+      original_erased: originalErased,
+    });
   },
 );
 
@@ -424,13 +444,15 @@ server.registerTool(
   async () => {
     const entries = store.entryStats();
     const originals = await originalStore.stats();
-    let dbBytes = 0;
+    // null (not 0) distinguishes a stat error from a genuinely empty DB; the
+    // absolute path is withheld to avoid leaking local filesystem details.
+    let dbBytes: number | null = null;
     try {
       dbBytes = statSync(dbPath).size;
     } catch {
-      dbBytes = 0;
+      dbBytes = null;
     }
-    return jsonResult({ entries, originals, db_bytes: dbBytes, db_path: dbPath });
+    return jsonResult({ entries, originals, db_bytes: dbBytes });
   },
 );
 
