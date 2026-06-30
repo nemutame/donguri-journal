@@ -94,12 +94,16 @@ export async function generateReview(
   let chartPng: Buffer | null = null;
   if (byDay.length > 0) {
     try {
+      // Keep the year in labels when the window spans more than one (MM-DD alone
+      // would be ambiguous across years); otherwise MM-DD keeps labels compact.
+      const includeYear = new Set(byDay.map((d) => d.day.slice(0, 4))).size > 1;
       const svg = barChartSvg(
         `Entries per day — ${window.label}`,
-        byDay.map((d) => ({ label: d.day.slice(5), value: d.count })),
+        byDay.map((d) => ({ label: includeYear ? d.day : d.day.slice(5), value: d.count })),
       );
       chartPng = await renderPng(svg);
-    } catch {
+    } catch (err) {
+      console.error("[donguri-journal] review chart render failed:", err);
       chartPng = null;
     }
   }

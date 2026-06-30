@@ -90,7 +90,8 @@ export async function surfacePatterns(
           .map((e) => ({ label: shortLabel(e.recent.body), value: e.related.length })),
       );
       chartPng = await renderPng(svg);
-    } catch {
+    } catch (err) {
+      console.error("[donguri-journal] patterns chart render failed:", err);
       chartPng = null;
     }
   }
