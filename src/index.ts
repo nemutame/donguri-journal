@@ -358,10 +358,7 @@ server.registerTool(
       "other types return the local file path and metadata. Use this after recall_related / " +
       "query_entries surfaces an entry whose original you want to actually see again.",
     inputSchema: {
-      original_ref: z
-        .string()
-        .min(1)
-        .describe("The entry's original_ref, e.g. 'local:<sha256>'."),
+      original_ref: z.string().min(1).describe("The entry's original_ref, e.g. 'local:<sha256>'."),
     },
   },
   async ({ original_ref }) => {
