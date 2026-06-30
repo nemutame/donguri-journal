@@ -156,8 +156,11 @@ export const coreModule: JournalModule = {
           mime: original_mime,
           filename: original_filename,
         });
-        store.attachOriginalIfAbsent(result.id, saved.ref);
-        return jsonResult({ ...result, original_ref: saved.ref });
+        // Report the ref actually stored: if the row already had one,
+        // attachOriginalIfAbsent is a no-op and we return the existing value.
+        const attached = store.attachOriginalIfAbsent(result.id, saved.ref);
+        const ref = attached ? saved.ref : (store.getOriginalRef(result.id) ?? saved.ref);
+        return jsonResult({ ...result, original_ref: ref });
       },
     );
 
