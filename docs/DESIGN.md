@@ -1,5 +1,7 @@
 # donguri-journal — Design
 
+**English** | [日本語](DESIGN.ja.md)
+
 This document captures the design intent and the binding decisions behind
 donguri-journal. It is the "why", complementing the README's "how to use". Where
 a feature is not yet built, it is marked **planned**.
