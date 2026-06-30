@@ -28,6 +28,9 @@
     "sqlite-vec": "^0.1.9",
     "zod": "^3.23.8"
   },
+  "optionalDependencies": {
+    "sharp": "^0.32.6"
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/better-sqlite3": "^7.6.13",

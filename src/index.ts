@@ -16,6 +16,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { JournalStore } from "./db/store.js";
 import { createEmbeddingProvider } from "./embedding/provider.js";
+import { surfacePatterns } from "./review/patterns.js";
+import { generateReview } from "./review/review.js";
 
 function resolveDbPath(): string {
   const fromEnv = process.env.JOURNAL_DB_PATH;
@@ -34,6 +36,18 @@ const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 
 function jsonResult(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+}
+
+/** Result with an optional PNG chart followed by the structured JSON payload. */
+function richResult(png: Buffer | null, payload: unknown) {
+  const content: Array<
+    { type: "image"; data: string; mimeType: string } | { type: "text"; text: string }
+  > = [];
+  if (png) {
+    content.push({ type: "image", data: png.toString("base64"), mimeType: "image/png" });
+  }
+  content.push({ type: "text", text: JSON.stringify(payload, null, 2) });
+  return { content };
 }
 
 server.registerTool(
@@ -148,6 +162,101 @@ server.registerTool(
   async (args) => {
     const hits = await store.recall(args.query, args.k);
     return jsonResult({ count: hits.length, hits });
+  },
+);
+
+server.registerTool(
+  "generate_review",
+  {
+    title: "Generate a time-window review",
+    description:
+      "Produce a reflective review of a period — call this when the user wants to look back " +
+      "('how was my week?', 'review this month', daily/weekly/monthly check-ins, BuJo-style " +
+      "migration). Returns structured aggregates (totals, busiest day, source kinds, top tags), " +
+      "presentation hints, and — when there are entries to plot — an attached PNG chart of " +
+      "activity over time (otherwise structured data only). Show the chart if present and weave " +
+      "the aggregates into a short reflective summary — do not just dump the numbers. Pick " +
+      "`period` (day/week/month), or pass BOTH `since` and `until` for an explicit custom range " +
+      "(one without the other is an error). `time_field` selects when-captured vs when-it-happened.",
+    inputSchema: {
+      period: z
+        .enum(["day", "week", "month"])
+        .optional()
+        .describe(
+          "Calendar window containing `anchor`. Defaults to 'week'. Ignored if since+until given.",
+        ),
+      anchor: z
+        .string()
+        .datetime({ offset: true })
+        .optional()
+        .describe("ISO-8601 point in time the period is computed around. Defaults to now."),
+      since: z
+        .string()
+        .datetime({ offset: true })
+        .optional()
+        .describe("ISO-8601 lower bound for an explicit custom window (use with `until`)."),
+      until: z
+        .string()
+        .datetime({ offset: true })
+        .optional()
+        .describe("ISO-8601 upper bound for an explicit custom window (use with `since`)."),
+      time_field: z
+        .enum(["created_at", "occurred_at"])
+        .optional()
+        .describe("Which timestamp to window by. Defaults to 'created_at'."),
+    },
+  },
+  async (args) => {
+    const out = await generateReview(store, args);
+    return richResult(out.chartPng, {
+      structured: out.structured,
+      presentation_hints: out.presentation_hints,
+    });
+  },
+);
+
+server.registerTool(
+  "surface_patterns",
+  {
+    title: "Surface recurring themes (echoes)",
+    description:
+      "Detect recurring themes — recent entries that echo something the user wrote BEFORE. Call " +
+      "this when the user reflects on habits or patterns ('do I keep coming back to this?', " +
+      "'am I in a rut?') or proactively during reviews. For each recent entry it finds " +
+      "semantically similar older entries; returns the echo clusters (with distances), " +
+      "presentation hints, and — when any echoes are found — an attached PNG chart of the " +
+      "strongest echoes (otherwise structured data only). Each echo is a CANDIDATE recurrence — " +
+      "judge relevance yourself and present gently, don't over-claim.",
+    inputSchema: {
+      lookback_days: z
+        .number()
+        .int()
+        .optional()
+        .describe("How far back to treat entries as 'recent' (1-3650, default 30)."),
+      max_recent: z
+        .number()
+        .int()
+        .optional()
+        .describe("Max recent entries to examine (1-200, default 50)."),
+      per_entry: z
+        .number()
+        .int()
+        .optional()
+        .describe("Neighbours considered per recent entry (1-20, default 5)."),
+      max_distance: z
+        .number()
+        .optional()
+        .describe(
+          "Distance cutoff; only closer echoes are kept (default 1.3, smaller = stricter).",
+        ),
+    },
+  },
+  async (args) => {
+    const out = await surfacePatterns(store, args);
+    return richResult(out.chartPng, {
+      structured: out.structured,
+      presentation_hints: out.presentation_hints,
+    });
   },
 );
 
