@@ -260,6 +260,26 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  "reindex",
+  {
+    title: "Rebuild the semantic search index",
+    description:
+      "Maintenance operation: rebuild the vector index from the original entries using the " +
+      "current embedding backend. Use this after switching the embedding model — the server " +
+      "logs a warning on startup when the active model no longer matches what the index was " +
+      "built with, because vectors from different models are not comparable. Originals are " +
+      "never touched; only the disposable index is rebuilt, then re-recall works again. May " +
+      "take a while for large journals. Not part of normal capture/recall — only run it when " +
+      "the user asks to reindex or after a backend change.",
+    inputSchema: {},
+  },
+  async () => {
+    const result = await store.reindex();
+    return jsonResult(result);
+  },
+);
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
