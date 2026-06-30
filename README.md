@@ -1,36 +1,45 @@
 # 🐿️ donguri-journal
 
+**English** | [日本語](README.ja.md)
+
 > A local-first, time-aware journaling **memory** server for AI agents, over MCP.
-> ローカルファースト・時間軸対応の「記憶」MCP サーバー。
 
 A squirrel stashes acorns (*donguri*) and digs them up later. donguri-journal does
 the same for your thoughts: a multimodal LLM (Claude, etc.) is the companion and UI,
 and this server is the persistent memory organ behind it — **capture** things casually
 in the flow of conversation, **recall** them across time.
 
+> Design rationale and the full roadmap live in **[docs/DESIGN.md](docs/DESIGN.md)**.
+
 ---
 
-## What it is / これは何か
+## What it is
 
-- **Local-first.** Everything lives in a single SQLite file on your machine. No cloud, no account.
-- **Time-aware.** Every entry has both `created_at` (when captured) and `occurred_at` (when the
-  event actually happened) — built for human reflection: "what was I thinking 3 months ago?",
-  weekly/monthly review, BuJo-style migration.
-- **Multimodal by delegation.** The server never runs vision/audio models. Your multimodal LLM
-  extracts faithful text from images/audio/URLs and passes it in; the original is referenced, not destroyed.
+- **Local-first.** Everything lives in a single SQLite file plus a local originals
+  directory on your machine. No cloud, no account.
+- **Time-aware.** Every entry has both `created_at` (when captured) and `occurred_at`
+  (when the event actually happened) — built for human reflection: "what was I
+  thinking 3 months ago?", weekly/monthly review, BuJo-style migration.
+- **Multimodal by delegation.** The server never runs vision/audio models. Your
+  multimodal LLM extracts faithful text from images/audio/URLs and passes it in; the
+  original bytes are stored verbatim, never destroyed.
 - **Zero-setup embeddings.** Semantic search works out of the box via in-process
-  [transformers.js](https://github.com/xenova/transformers.js) (`Xenova/all-MiniLM-L6-v2`, 384-dim).
-  No Ollama, no manual model pull. The backend is swappable for power users.
+  [transformers.js](https://github.com/xenova/transformers.js)
+  (`Xenova/all-MiniLM-L6-v2`, 384-dim). No Ollama, no manual model pull. The backend
+  is swappable for power users.
 
-> **Status:** Phase 1 (core capture / recall) + Phase 1.5 (review / insight tools). Local-first sync (CRDT + E2E encryption) is a later, independent phase.
+> **Status:** Phase 1 (capture / recall) + Phase 1.5 (review / insight) + local
+> originals storage are implemented. A management UI, an agent-installable plugin
+> platform, and local-first sync are designed and planned — see
+> [docs/DESIGN.md](docs/DESIGN.md).
 
-## Requirements / 必要環境
+## Requirements
 
 - **Node.js 22+**
-- A **multimodal LLM client that speaks MCP** (e.g. Claude Desktop). This is a hard requirement —
-  the server has no UI of its own and does not process media itself.
+- A **multimodal LLM client that speaks MCP** (e.g. Claude Desktop). This is a hard
+  requirement — the server has no UI of its own and does not process media itself.
 
-## Setup / セットアップ
+## Setup
 
 Until this is published to npm, run it from a local build:
 
@@ -39,7 +48,8 @@ npm install
 npm run build
 ```
 
-Then register it with your MCP client. Example (Claude Desktop, `claude_desktop_config.json`):
+Then register it with your MCP client. Example (Claude Desktop,
+`claude_desktop_config.json`):
 
 ```jsonc
 {
@@ -52,9 +62,12 @@ Then register it with your MCP client. Example (Claude Desktop, `claude_desktop_
 }
 ```
 
-On first use the embedding model (~90 MB) is downloaded and cached automatically (needs network once).
+On first use the embedding model (~90 MB) is downloaded and cached automatically
+(needs network once). If your MCP client does not inherit your shell `PATH` (common
+with nvm), use an absolute path to `node`, e.g.
+`/home/you/.nvm/versions/node/v22.x.y/bin/node`.
 
-### Configuration / 設定
+### Configuration
 
 | Env var | Default | Meaning |
 | --- | --- | --- |
@@ -64,9 +77,10 @@ On first use the embedding model (~90 MB) is downloaded and cached automatically
 
 `stdout` is reserved for the MCP protocol; all logs go to `stderr`.
 
-## Tools / ツール
+## Tools
 
-The tool descriptions are written as instructions for the front-end LLM (when to call each).
+The tool descriptions are written as instructions for the front-end LLM (when to call
+each).
 
 | Tool | Purpose |
 | --- | --- |
@@ -76,36 +90,48 @@ The tool descriptions are written as instructions for the front-end LLM (when to
 | `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
 | `surface_patterns` | Recurring themes — recent entries that **echo earlier ones**. Returns echo clusters with distances + a PNG chart + presentation hints. |
 | `get_original` | Fetch a stored original artifact by its `original_ref`. Images are returned inline so the LLM can re-view / re-extract; other types return the local path + metadata. |
-| `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend — a different model **or** a different implementation (the server warns on startup when the index no longer matches). Originals are never touched. |
+| `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend (the server warns on startup when the index no longer matches). Originals are never touched. |
 
-`query_entries` and `recall_related` are intentionally separate retrieval paths; the LLM picks
-based on the question (precise filter vs. meaning). `generate_review` and `surface_patterns`
-return rendered PNG charts alongside structured data and presentation hints, so the LLM can
-present a rich, reflective summary rather than a bare list.
+`query_entries` and `recall_related` are intentionally separate retrieval paths; the
+LLM picks based on the question (precise filter vs. meaning). `generate_review` and
+`surface_patterns` return rendered PNG charts alongside structured data and
+presentation hints, so the LLM can present a rich, reflective summary rather than a
+bare list.
 
-## How it stores things / 保存のしくみ
+## How it stores things
 
 Two layers, so the index is always rebuildable and originals are never lost:
 
-- **`entries`** — the indexed text (`body`), a pointer to the verbatim original (`original_ref`),
-  timestamps, tags, and metadata. `extraction_state` records how `body` was produced, so lossy
-  extraction can be redone later.
-- **`vec_entries`** — a disposable [sqlite-vec](https://github.com/asg017/sqlite-vec) vector index.
-  The active embedding model/dim is recorded so switching backends can trigger a reindex.
-- **originals** — when the LLM sends an artifact's bytes, they're saved verbatim in a local
-  content-addressed store (`OriginalStore`, default: a local directory), and `original_ref`
-  points at them. The backend is pluggable; the server never interprets the bytes. Embeddings
-  are always made from the extracted text, never the media itself.
+- **`entries`** — the indexed text (`body`), a pointer to the verbatim original
+  (`original_ref`), timestamps, tags, and metadata. `extraction_state` records how
+  `body` was produced, so lossy extraction can be redone later.
+- **`vec_entries`** — a disposable [sqlite-vec](https://github.com/asg017/sqlite-vec)
+  vector index. The active embedding model/dim is recorded so switching backends can
+  trigger a reindex.
+- **originals** — when the LLM sends an artifact's bytes, they're saved verbatim in a
+  local content-addressed store (`OriginalStore`, default: a local directory), and
+  `original_ref` points at them. The backend is pluggable; the server never interprets
+  the bytes. Embeddings are always made from the extracted text, never the media
+  itself.
 
-## Development / 開発
+## Contributing
+
+Contributions are welcome — **issues and PRs in Japanese are fine too**. See
+[docs/DESIGN.md](docs/DESIGN.md) for the design intent before proposing larger changes.
 
 ```bash
 npm run lint        # Biome (lint + format check)
+npm run lint:fix    # auto-fix
 npm run typecheck   # tsc --noEmit
 npm run build       # tsc -> dist/
 ```
 
-Contributions go through a PR; CI (lint + typecheck + build) and CodeRabbit review gate `main`.
+Workflow:
+
+- Node 22 is pinned via `.nvmrc` (`nvm use`).
+- `main` is protected — work on a branch and open a pull request.
+- Every PR is gated by **CI** (lint + typecheck + build) and a **CodeRabbit** review;
+  both must pass before merge.
 
 ## License
 
