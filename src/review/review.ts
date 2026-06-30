@@ -6,10 +6,10 @@
 import {
   type DayCount,
   type JournalStore,
-  normalizeTimestamp,
   type ReviewTimeWindow,
   type SourceKindCount,
   type TagCount,
+  normalizeTimestamp,
 } from "../db/store.js";
 import { barChartSvg, renderPng } from "./charts.js";
 import { type ReviewPeriod, type ReviewWindow, computeWindow } from "./window.js";
@@ -49,7 +49,9 @@ export async function generateReview(
   // than silently falling back to `period` and returning a different range.
   const { since, until } = input;
   if ((since === undefined) !== (until === undefined)) {
-    throw new Error("A custom window requires both `since` and `until` (or neither — use `period`).");
+    throw new Error(
+      "A custom window requires both `since` and `until` (or neither — use `period`).",
+    );
   }
 
   let window: ReviewWindow;
