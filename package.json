@@ -5,10 +5,29 @@
   "license": "MIT",
   "author": "Nemutame",
   "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "journal",
+    "memory",
+    "local-first",
+    "sqlite",
+    "embeddings",
+    "ai",
+    "claude"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemutame/donguri-journal.git"
+  },
+  "homepage": "https://github.com/nemutame/donguri-journal#readme",
+  "bugs": {
+    "url": "https://github.com/nemutame/donguri-journal/issues"
+  },
   "bin": {
     "donguri-journal": "dist/index.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "README.ja.md"],
   "engines": {
     "node": ">=22"
   },
@@ -20,7 +39,8 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "dev": "tsc -w -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
