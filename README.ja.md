@@ -2,6 +2,8 @@
 
 [English](README.md) | **日本語**
 
+[![npm](https://img.shields.io/npm/v/donguri-journal)](https://www.npmjs.com/package/donguri-journal)
+
 > ローカルファースト・時間軸対応の「**記憶**」MCP サーバー（AI エージェント向け）。
 
 リスは掘り返すよりずっと多くのドングリ（donguri）を埋めます——ためらわず、ひたすら
@@ -44,48 +46,60 @@
 
 ## セットアップ
 
-### AI エージェントで導入（CLI 不要）
+### クイックスタート
 
-donguri-journal は AI エージェント向けの MCP サーバーです——だからセットアップも
-エージェントに任せましょう。シェルを実行しファイルを編集できるコーディングエージェント
-（例: **Claude Code**、またはファイル/ターミナル権限を与えた **Claude Desktop**）に、
-下のプロンプトを貼り付けてください。クローン→ビルド→MCP クライアントへの登録→動作確認
-までを代行します。あなたはコマンドを一切打ちません。
+クローンもビルドも不要——[`npx`](https://www.npmjs.com/package/donguri-journal) が取得して
+実行します。MCP クライアントに登録するだけです。
 
-```text
-私のマシンに「donguri-journal」（ローカルファーストのジャーナル記憶 MCP サーバー）を
-最初から最後までセットアップして。ターミナルコマンドは私に打たせず、あなたが実行して。
+**Claude Desktop**（`claude_desktop_config.json`）:
 
-1. Node.js 22 以上が使えることを確認（無ければ nvm で入れる）。
-2. https://github.com/nemutame/donguri-journal を ~/tools/donguri-journal のような
-   安定した場所にクローン（既にあれば git pull）。
-3. そのディレクトリで実行: npm ci && npm run build （dist/index.js が生成される）。
-4. 既存のサーバー設定を保ったまま、私の MCP クライアントに登録:
-   - Claude Desktop — 設定 JSON を編集し、"mcpServers" の下に "donguri-journal" を追加。
-     "command": "node"、"args": ["<絶対パス>/dist/index.js"]:
-       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-       Windows: %APPDATA%\Claude\claude_desktop_config.json
-     クライアントがシェルの PATH を引き継がない場合（nvm で頻発）は、"node" の代わりに
-     node バイナリの絶対パスを使う。
-   - Claude Code — 実行:  claude mcp add donguri-journal -- node <絶対パス>/dist/index.js
-5. MCP クライアントを完全に再起動するよう私に伝える。そのあと、短いテストメモを capture
-   して recall し動作確認して。初回 capture 時に埋め込みモデル（約 90 MB）が一度だけ
-   ダウンロードされる（ネットワーク必要）。以降はすべてローカルで動く。
-
-すべて私のマシン内で完結させて。デプロイやデータの外部送信はしないで。
+```json
+{
+  "mcpServers": {
+    "donguri-journal": {
+      "command": "npx",
+      "args": ["-y", "donguri-journal"]
+    }
+  }
+}
 ```
 
-### 手動セットアップ
+**Claude Code:**
 
-自分で行いたい場合は、ローカルチェックアウトからビルドします。
+```bash
+claude mcp add donguri-journal -- npx -y donguri-journal
+```
+
+MCP クライアントを再起動してください。初回 capture 時に埋め込みモデル（約 90 MB）が
+一度だけダウンロード・キャッシュされます（ネットワーク必要）。以降はすべてローカルで動作。
+クライアントがシェルの `PATH` を引き継がない場合（nvm で頻発）は、`npx` を絶対パスで
+指定してください。
+
+### AI エージェントで導入
+
+エージェントに任せたい場合は、ファイルを編集できるエージェント（例: **Claude Code**、
+またはファイル権限を与えた **Claude Desktop**）に下を貼り付けてください:
+
+```text
+「donguri-journal」MCP サーバーを、既存のサーバー設定を保ったまま私の MCP クライアントに
+追加して。command は "npx"、args は ["-y", "donguri-journal"]。
+  - Claude Desktop — 設定 JSON の "mcpServers" の下に追加:
+      macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+      Windows: %APPDATA%\Claude\claude_desktop_config.json
+  - Claude Code — 実行:  claude mcp add donguri-journal -- npx -y donguri-journal
+そのあとクライアントを完全に再起動するよう私に伝えて、短いテストメモを capture して
+recall し動作確認して（初回 capture で約 90 MB のモデルを一度だけ DL、以降はローカル）。
+```
+
+### ソースから（開発向け）
+
+コントリビュートや未リリース版の実行には、チェックアウトからビルドして、ビルド済みの
+エントリをクライアントに指定します。
 
 ```bash
 npm ci
 npm run build
 ```
-
-そのうえで MCP クライアントに登録します。例（Claude Desktop の
-`claude_desktop_config.json`）:
 
 ```jsonc
 {
@@ -98,10 +112,8 @@ npm run build
 }
 ```
 
-初回利用時に埋め込みモデル（約 90 MB）が自動でダウンロード・キャッシュされます
-（一度だけネットワークが必要）。MCP クライアントがシェルの `PATH` を引き継がない場合
-（nvm でよく起きます）は、`node` を絶対パスで指定してください。例:
-`/home/you/.nvm/versions/node/v22.x.y/bin/node`
+MCP クライアントがシェルの `PATH` を引き継がない場合（nvm でよく起きます）は、`node` を
+絶対パスで指定してください。例: `/home/you/.nvm/versions/node/v22.x.y/bin/node`
 
 ### 設定
 
