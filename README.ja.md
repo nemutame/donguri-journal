@@ -31,9 +31,10 @@
   （`Xenova/all-MiniLM-L6-v2`, 384 次元）で標準動作。Ollama も手動のモデル取得も不要。
   バックエンドは上級者向けに差し替え可能です。
 
-> **現状:** Phase 1（capture / recall）＋ Phase 1.5（レビュー/インサイト）＋ ローカル
-> 原本保存 が実装済み。管理 UI、エージェントが導入できるプラグイン基盤、ローカル
-> ファースト同期は設計・計画済みです——[docs/DESIGN.md](docs/DESIGN.md) を参照。
+> **現状:** Phase 1（capture / recall）＋ Phase 1.5（レビュー/インサイト）、ローカル
+> 原本保存、エントリ管理、プラグイン読み込み、そして**読み取り専用の管理コンソール**が
+> 実装済み。UI からの削除/エクスポート、アルバム表示、キュレーション済みプラグイン
+> レジストリ、ローカルファースト同期は計画中です——[docs/DESIGN.md](docs/DESIGN.md) を参照。
 
 ## 必要環境
 
@@ -43,10 +44,43 @@
 
 ## セットアップ
 
-npm 公開前は、ローカルビルドから実行します。
+### AI エージェントで導入（CLI 不要）
+
+donguri-journal は AI エージェント向けの MCP サーバーです——だからセットアップも
+エージェントに任せましょう。シェルを実行しファイルを編集できるコーディングエージェント
+（例: **Claude Code**、またはファイル/ターミナル権限を与えた **Claude Desktop**）に、
+下のプロンプトを貼り付けてください。クローン→ビルド→MCP クライアントへの登録→動作確認
+までを代行します。あなたはコマンドを一切打ちません。
+
+```text
+私のマシンに「donguri-journal」（ローカルファーストのジャーナル記憶 MCP サーバー）を
+最初から最後までセットアップして。ターミナルコマンドは私に打たせず、あなたが実行して。
+
+1. Node.js 22 以上が使えることを確認（無ければ nvm で入れる）。
+2. https://github.com/nemutame/donguri-journal を ~/tools/donguri-journal のような
+   安定した場所にクローン（既にあれば git pull）。
+3. そのディレクトリで実行: npm ci && npm run build （dist/index.js が生成される）。
+4. 既存のサーバー設定を保ったまま、私の MCP クライアントに登録:
+   - Claude Desktop — 設定 JSON を編集し、"mcpServers" の下に "donguri-journal" を追加。
+     "command": "node"、"args": ["<絶対パス>/dist/index.js"]:
+       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+       Windows: %APPDATA%\Claude\claude_desktop_config.json
+     クライアントがシェルの PATH を引き継がない場合（nvm で頻発）は、"node" の代わりに
+     node バイナリの絶対パスを使う。
+   - Claude Code — 実行:  claude mcp add donguri-journal -- node <絶対パス>/dist/index.js
+5. MCP クライアントを完全に再起動するよう私に伝える。そのあと、短いテストメモを capture
+   して recall し動作確認して。初回 capture 時に埋め込みモデル（約 90 MB）が一度だけ
+   ダウンロードされる（ネットワーク必要）。以降はすべてローカルで動く。
+
+すべて私のマシン内で完結させて。デプロイやデータの外部送信はしないで。
+```
+
+### 手動セットアップ
+
+自分で行いたい場合は、ローカルチェックアウトからビルドします。
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
