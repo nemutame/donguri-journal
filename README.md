@@ -31,9 +31,10 @@ open-ended part, and that's what **plugins** extend.
   (`Xenova/all-MiniLM-L6-v2`, 384-dim). No Ollama, no manual model pull. The backend
   is swappable for power users.
 
-> **Status:** Phase 1 (capture / recall) + Phase 1.5 (review / insight) + local
-> originals storage are implemented. A management UI, an agent-installable plugin
-> platform, and local-first sync are designed and planned — see
+> **Status:** Phase 1 (capture / recall) + Phase 1.5 (review / insight), local
+> originals storage, entry management, plugin loading, and a **read-only management
+> console** are implemented. UI-driven delete / export, an album view, a curated
+> plugin registry, and local-first sync are planned — see
 > [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Requirements
@@ -44,10 +45,43 @@ open-ended part, and that's what **plugins** extend.
 
 ## Setup
 
-Until this is published to npm, run it from a local build:
+### Install with an AI agent (no CLI needed)
+
+donguri-journal is an MCP server for AI agents — so let an agent set it up. Paste the
+prompt below to any coding agent that can run a shell and edit files on your machine
+(e.g. **Claude Code**, or **Claude Desktop** with filesystem/terminal access). It will
+clone, build, register the server with your MCP client, and verify it — you don't type
+any commands yourself.
+
+```text
+Set up "donguri-journal", a local-first journaling memory MCP server, on my machine,
+end to end. Don't ask me to run terminal commands — you run them.
+
+1. Make sure Node.js 22+ is available (install it via nvm if it's missing).
+2. Clone https://github.com/nemutame/donguri-journal into a stable location such as
+   ~/tools/donguri-journal (if it already exists, git pull instead).
+3. In that directory run: npm ci && npm run build  (this produces dist/index.js).
+4. Register it with my MCP client, preserving any servers already configured:
+   - Claude Desktop — edit the config JSON and add a "donguri-journal" entry under
+     "mcpServers" with "command": "node" and "args": ["<ABS_PATH>/dist/index.js"]:
+       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+       Windows: %APPDATA%\Claude\claude_desktop_config.json
+     If the client doesn't inherit my shell PATH (common with nvm), use the absolute
+     path to the node binary instead of "node".
+   - Claude Code — run:  claude mcp add donguri-journal -- node <ABS_PATH>/dist/index.js
+5. Tell me to fully restart the MCP client. Then verify by capturing a short test note
+   and recalling it — the first capture downloads a ~90 MB embedding model once
+   (needs network), after which everything runs locally.
+
+Keep everything on my machine: don't deploy anything or send my data anywhere.
+```
+
+### Manual setup
+
+Prefer to do it yourself? Build from a local checkout:
 
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
