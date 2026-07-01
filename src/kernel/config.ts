@@ -16,6 +16,10 @@ export interface JournalConfig {
   pluginsDir: string;
   /** JSON file recording which plugins are installed / enabled. */
   pluginsConfigPath: string;
+  /** Host the management UI binds to. Localhost-only by default. */
+  uiHost: string;
+  /** Port for the management UI. 0 = an ephemeral port chosen at listen time. */
+  uiPort: number;
 }
 
 const DEFAULT_MAX_ORIGINAL_BYTES = 25 * 1024 * 1024;
@@ -28,6 +32,7 @@ function envOr(name: string, fallback: string): string {
 export function loadConfig(): JournalConfig {
   const home = homedir();
   const max = Number(process.env.JOURNAL_MAX_ORIGINAL_BYTES);
+  const uiPort = Number(process.env.JOURNAL_UI_PORT);
   return {
     dbPath: envOr("JOURNAL_DB_PATH", join(home, ".journal-mcp", "journal.db")),
     originalsDir: envOr("JOURNAL_ORIGINALS_DIR", join(home, ".journal-mcp", "originals")),
@@ -35,5 +40,7 @@ export function loadConfig(): JournalConfig {
       Number.isFinite(max) && max > 0 ? Math.floor(max) : DEFAULT_MAX_ORIGINAL_BYTES,
     pluginsDir: envOr("JOURNAL_PLUGINS_DIR", join(home, ".journal-mcp", "plugins")),
     pluginsConfigPath: envOr("JOURNAL_PLUGINS_CONFIG", join(home, ".journal-mcp", "plugins.json")),
+    uiHost: envOr("JOURNAL_UI_HOST", "127.0.0.1"),
+    uiPort: Number.isInteger(uiPort) && uiPort >= 0 && uiPort <= 65535 ? uiPort : 0,
   };
 }

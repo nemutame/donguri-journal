@@ -98,6 +98,7 @@ each).
 | `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend (the server warns on startup when the index no longer matches). Originals are never touched. |
 | `storage_stats` | Capacity: entry counts (active vs soft-deleted), vectors, breakdown by source kind / month, originals count + bytes, and DB size. |
 | `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
+| `open_management_ui` | Start a **localhost-only** web console for the owner to browse, filter, semantically recall, and see storage stats directly — outside the LLM conversation. Returns a token-bearing URL to open in a browser. |
 | `list_installed_plugins` | List installed plugins with their enabled state, version, and declared capabilities. |
 | `install_plugin` | Install a local plugin. Two-step: propose (see manifest + capabilities), then `confirm: true`. Loads immediately — no restart. |
 | `uninstall_plugin` | Remove an installed plugin from disk and the registry. Tools it already registered stay available until the server restarts. |
