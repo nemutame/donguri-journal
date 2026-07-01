@@ -74,6 +74,8 @@ with nvm), use an absolute path to `node`, e.g.
 | `JOURNAL_DB_PATH` | `~/.journal-mcp/journal.db` | Path to the SQLite database file. |
 | `JOURNAL_ORIGINALS_DIR` | `~/.journal-mcp/originals` | Directory where original artifacts (images/audio/files) are stored, content-addressed. |
 | `JOURNAL_MAX_ORIGINAL_BYTES` | `26214400` (25 MiB) | Max accepted size of a single original artifact; larger `original_data` is rejected. |
+| `JOURNAL_PLUGINS_DIR` | `~/.journal-mcp/plugins` | Directory where installed plugins live (one subdirectory per plugin). |
+| `JOURNAL_PLUGINS_CONFIG` | `~/.journal-mcp/plugins.json` | JSON file recording which plugins are installed / enabled. |
 
 `stdout` is reserved for the MCP protocol; all logs go to `stderr`.
 
@@ -93,6 +95,9 @@ each).
 | `reindex` | Maintenance — rebuild the vector index from the originals using the current embedding backend. Run after switching the embedding backend (the server warns on startup when the index no longer matches). Originals are never touched. |
 | `storage_stats` | Capacity: entry counts (active vs soft-deleted), vectors, breakdown by source kind / month, originals count + bytes, and DB size. |
 | `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
+| `list_installed_plugins` | List installed plugins with their enabled state, version, and declared capabilities. |
+| `install_plugin` | Install a local plugin. Two-step: propose (see manifest + capabilities), then `confirm: true`. Loads immediately — no restart. |
+| `uninstall_plugin` | Remove an installed plugin from disk and the registry. Tools it already registered stay available until the server restarts. |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the
 LLM picks based on the question (precise filter vs. meaning). `generate_review` and

@@ -73,6 +73,8 @@ npm run build
 | `JOURNAL_DB_PATH` | `~/.journal-mcp/journal.db` | SQLite データベースファイルのパス。 |
 | `JOURNAL_ORIGINALS_DIR` | `~/.journal-mcp/originals` | 原本（画像/音声/ファイル）を content-addressed で保存するディレクトリ。 |
 | `JOURNAL_MAX_ORIGINAL_BYTES` | `26214400`（25 MiB） | 1 つの原本の最大サイズ。これを超える `original_data` は拒否されます。 |
+| `JOURNAL_PLUGINS_DIR` | `~/.journal-mcp/plugins` | 導入済みプラグインを置くディレクトリ（プラグインごとにサブディレクトリ）。 |
+| `JOURNAL_PLUGINS_CONFIG` | `~/.journal-mcp/plugins.json` | どのプラグインが導入/有効かを記録する JSON ファイル。 |
 
 `stdout` は MCP プロトコル専用です。ログはすべて `stderr` に出力されます。
 
@@ -92,6 +94,9 @@ npm run build
 | `reindex` | 保守——現在の埋め込みバックエンドで原本からベクトルインデックスを再構築。バックエンド変更後に実行（不一致時は起動時に警告）。原本は一切触らない。 |
 | `storage_stats` | 容量: エントリ数（有効/ソフト削除）・ベクトル数・種別/月別・原本の件数とバイト・DB サイズ。 |
 | `delete_entry` | エントリ削除——`mode: soft`（復元可能な tombstone）/ `hard`（entry＋ベクトル＋孤児原本を完全消去し VACUUM）。 |
+| `list_installed_plugins` | 導入済みプラグインを一覧（有効状態・バージョン・宣言ケイパビリティ）。 |
+| `install_plugin` | ローカルのプラグインを導入。2段階: 提案（マニフェスト＋権限を確認）→ `confirm: true`。再起動なしで即有効。 |
+| `uninstall_plugin` | 導入済みプラグインをディスクとレジストリから削除。既に登録済みのツールはサーバー再起動まで残ります。 |
 
 `query_entries` と `recall_related` は意図的に別経路です（LLM が問いに応じて、正確な
 絞り込みか意味かを選ぶ）。`generate_review` と `surface_patterns` は、描画済みの PNG
