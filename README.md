@@ -100,26 +100,20 @@ for CLI agents (Claude Code, Codex).
 
 ### Install with an AI agent
 
-Prefer to let an agent do it? Paste the prompt below to any agent that can run a shell and
-configure its own MCP client (e.g. **Codex**, **Claude Code**, **Cursor**). It is written
-generically so the agent configures **the client it belongs to** — not some other app:
+Prefer to let an agent do it? Point it at the full **[setup runbook](docs/SETUP.md)** —
+a checklist with prerequisite checks (Node version, etc.), install, per-client config, and
+troubleshooting. Paste this to any agent that can run a shell (e.g. **Codex**, **Claude
+Code**, **Cursor**):
 
 ```text
-Set up the "donguri-journal" MCP server for me and register it with the MCP client I'm
-using. Only touch THIS client's own MCP configuration — do not read or modify any other
-application's config files.
-
-1. Install it:  npm install -g donguri-journal
-2. Add a local (stdio) MCP server named "donguri-journal" to this client's own MCP config,
-   using whatever mechanism this client normally uses (its config file or its CLI):
-     command: donguri-journal      (no arguments)
-   If a global install isn't possible, use command "npx" with args ["-y", "donguri-journal"].
-   If you're unsure which client to configure, ask me first — don't guess at another app.
-3. Tell me to fully restart the client, then verify by capturing a short test note and
-   recalling it.
+Set up the donguri-journal MCP server by following this guide top to bottom, running each
+check yourself. Configure ONLY the MCP client I'm using — do not read or modify any other
+application's config. If unsure which client, ask me.
+Guide: https://github.com/nemutame/donguri-journal/blob/main/docs/SETUP.md
 ```
 
-(Exact per-client config snippets are under **Install (recommended)** and **Quick try** above.)
+If your agent can't browse the web, open **[docs/SETUP.md](docs/SETUP.md)** and paste its
+contents into the chat instead.
 
 ### From source (development)
 
