@@ -12,8 +12,11 @@ a feature is not yet built, it is marked **planned**.
 > **not** an agent's working memory, **not** a note-taking app, and **not** a
 > cloud service.
 
-The mascot is a squirrel that buries acorns (*donguri*) and digs them up later —
-which maps exactly to the two verbs: **capture** and **recall**.
+The mascot is a squirrel that hoards acorns (*donguri*) far faster than it ever digs
+them back up — which maps onto the split at the heart of donguri-journal. The core
+exists to **capture** everything and never lose it, and to **recall** it across time;
+digging the pile back up *further* — richer review, resurfacing, new lenses on the
+hoard — is the harder, open-ended side that **plugins** extend.
 
 ---
 
