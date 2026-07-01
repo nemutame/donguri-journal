@@ -100,16 +100,16 @@ for CLI agents (Claude Code, Codex).
 
 ### Install with an AI agent
 
-Prefer to let an agent do it? Point it at the full **[setup runbook](docs/SETUP.md)** —
-a checklist with prerequisite checks (Node version, etc.), install, per-client config, and
-troubleshooting. Paste this to any agent that can run a shell (e.g. **Codex**, **Claude
-Code**, **Cursor**):
+Prefer to let an agent do it? Point it at the full **[setup runbook](docs/SETUP.md)** — it
+opens with a "For AI agents" section (the ground rules: configure only your client, don't
+touch other apps' configs) and then walks through prerequisite checks, install, per-client
+config, and troubleshooting. Paste this to any agent that can run a shell (e.g. **Codex**,
+**Claude Code**, **Cursor**):
 
 ```text
-Set up the donguri-journal MCP server by following this guide top to bottom, running each
-check yourself. Configure ONLY the MCP client I'm using — do not read or modify any other
-application's config. If unsure which client, ask me.
-Guide: https://github.com/nemutame/donguri-journal/blob/main/docs/SETUP.md
+Set up the donguri-journal MCP server by following this guide, including its
+"For AI agents" notes at the top:
+https://github.com/nemutame/donguri-journal/blob/main/docs/SETUP.md
 ```
 
 If your agent can't browse the web, open **[docs/SETUP.md](docs/SETUP.md)** and paste its

@@ -100,15 +100,15 @@ CLI エージェント（Claude Code / Codex）では概ね快適です。
 ### AI エージェントで導入
 
 エージェントに任せたい場合は、**[セットアップ手順書（docs/SETUP.ja.md）](docs/SETUP.ja.md)**
-を参照させてください——前提チェック（Node バージョン等）・インストール・クライアント別設定・
-トラブルシューティングまで含むチェックリストです。シェルを実行できるエージェント（例:
+を参照させてください——冒頭に「AI エージェント向け」の注意書き（自分のクライアントだけ設定・
+他アプリの設定に触れない、という原則）があり、続けて前提チェック・インストール・クライアント別
+設定・トラブルシューティングまで一通り載っています。シェルを実行できるエージェント（例:
 **Codex** / **Claude Code** / **Cursor**）に下を貼り付けてください:
 
 ```text
-donguri-journal MCP サーバーを、次のガイドを上から順に、各チェックを自分で実行しながら
-セットアップして。設定するのは私が使っている MCP クライアントだけにして、他のアプリの設定は
-読んだり変更したりしないで。どのクライアントか分からなければ私に確認して。
-ガイド: https://github.com/nemutame/donguri-journal/blob/main/docs/SETUP.ja.md
+donguri-journal MCP サーバーを、次のガイド（冒頭の「AI エージェント向け」注意書きも含めて）に
+沿ってセットアップして:
+https://github.com/nemutame/donguri-journal/blob/main/docs/SETUP.ja.md
 ```
 
 エージェントが Web を開けない場合は、**[docs/SETUP.ja.md](docs/SETUP.ja.md)** を開いて中身を
