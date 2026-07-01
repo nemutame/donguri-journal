@@ -103,9 +103,9 @@ export function renderApp(): string {
       const dist = typeof e.distance === "number" ? '<span class="badge">d=' + e.distance.toFixed(3) + "</span>" : "";
       return '<div class="entry' + deleted + '">' +
         '<div class="body">' + esc(String(e.body || "")) + "</div>" +
-        '<div class="meta"><span>#' + e.id + "</span>" +
+        '<div class="meta"><span>#' + esc(String(e.id)) + "</span>" +
         "<span>" + esc(String(e.source_kind || "")) + "</span>" +
-        "<span>" + fmt(e.occurred_at) + "</span>" +
+        "<span>" + esc(fmt(e.occurred_at)) + "</span>" +
         (e.original_ref ? '<span class="badge">original</span>' : "") +
         delBadge + dist + " " + tags + "</div></div>";
     }).join("");
@@ -119,7 +119,9 @@ export function renderApp(): string {
     rows.push(["Originals", s.originals.count]);
     if (s.db_bytes != null) rows.push(["DB size", (s.db_bytes / 1024 / 1024).toFixed(2) + " MB"]);
     if (s.originals.bytes != null) rows.push(["Originals size", (s.originals.bytes / 1024 / 1024).toFixed(2) + " MB"]);
-    $("stats").innerHTML = rows.map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+    $("stats").innerHTML = rows
+      .map(([k, v]) => "<dt>" + esc(String(k)) + "</dt><dd>" + esc(String(v)) + "</dd>")
+      .join("");
   }
 
   async function search() {

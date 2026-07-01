@@ -59,6 +59,16 @@ function tokenMatches(expected: string, provided: string | null): boolean {
   return timingSafeEqual(a, b);
 }
 
+/**
+ * Is this a host we're willing to bind to? Loopback only — the Host-header check
+ * is a browser-side DNS-rebinding guard, NOT a substitute for the bind range, so
+ * we refuse to expose the socket on an external interface (e.g. 0.0.0.0).
+ */
+function isBindableLoopback(host: string): boolean {
+  const h = host.toLowerCase();
+  return h === "localhost" || h === "::1" || h === "[::1]" || /^127(\.\d{1,3}){3}$/.test(h);
+}
+
 /** Reject requests whose Host header isn't a loopback name (DNS-rebinding guard). */
 function hostIsLoopback(hostHeader: string | undefined): boolean {
   if (!hostHeader) return false;
@@ -77,7 +87,11 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
   const { store, originals, config } = ctx;
 
   const sendJson = (res: ServerResponse, status: number, body: unknown): void => {
-    res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+    // no-store: responses can carry journal bodies; keep them out of any cache.
+    res.writeHead(status, {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    });
     res.end(JSON.stringify(body));
   };
 
@@ -104,7 +118,10 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
           );
           return;
         }
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        });
         res.end(renderApp());
         return;
       }
@@ -179,7 +196,15 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
 export function startManagementUi(ctx: JournalContext): Promise<ManagementUi> {
   const token = randomBytes(24).toString("base64url");
   const server = createManagementServer(ctx, token);
-  const { uiHost, uiPort } = ctx.config;
+  const { uiPort } = ctx.config;
+  // Enforce localhost-only at the bind boundary; a non-loopback config value is
+  // refused (not silently honored) so the journal can't be exposed on the LAN.
+  const uiHost = isBindableLoopback(ctx.config.uiHost) ? ctx.config.uiHost : "127.0.0.1";
+  if (uiHost !== ctx.config.uiHost) {
+    ctx.log(
+      `refusing to bind management UI to non-loopback host "${ctx.config.uiHost}"; using 127.0.0.1 (localhost-only by design)`,
+    );
+  }
 
   return new Promise<ManagementUi>((resolve, reject) => {
     server.once("error", reject);

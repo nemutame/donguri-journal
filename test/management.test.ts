@@ -18,6 +18,7 @@ import { type TempDir, makeTempDir } from "./helpers/tmp.js";
 interface Res {
   status: number;
   contentType: string;
+  headers: Record<string, string | string[] | undefined>;
   body: string;
   json: () => unknown;
 }
@@ -39,6 +40,7 @@ function httpGet(
         resolve({
           status: res.statusCode ?? 0,
           contentType: res.headers["content-type"] ?? "",
+          headers: res.headers,
           body,
           json: () => JSON.parse(body),
         }),
@@ -65,12 +67,15 @@ describe("management UI host", () => {
     const del = await store.insert({ body: "secret to remove", source_kind: "note" });
     store.softDelete(del.id);
 
-    const config = {
+    const config: JournalConfig = {
       dbPath,
       originalsDir: tmp.file("originals"),
+      maxOriginalBytes: 25 * 1024 * 1024,
+      pluginsDir: tmp.file("plugins"),
+      pluginsConfigPath: tmp.file("plugins.json"),
       uiHost: "127.0.0.1",
       uiPort: 0,
-    } as JournalConfig;
+    };
     const ctx: JournalContext = {
       server: undefined as unknown as McpServer,
       store,
@@ -92,6 +97,7 @@ describe("management UI host", () => {
     const res = await httpGet(port, `/?token=${token}`);
     assert.equal(res.status, 200);
     assert.match(res.contentType, /text\/html/);
+    assert.equal(res.headers["cache-control"], "no-store");
     assert.match(res.body, /donguri-journal/);
   });
 
@@ -118,6 +124,7 @@ describe("management UI host", () => {
   it("lists active entries and hides soft-deleted by default", async () => {
     const res = await httpGet(port, "/api/entries", { "x-donguri-token": token });
     assert.equal(res.status, 200);
+    assert.equal(res.headers["cache-control"], "no-store");
     const body = res.json() as { count: number; entries: Array<{ body: string }> };
     assert.equal(body.count, 2);
     assert.ok(!body.entries.some((e) => e.body === "secret to remove"));
@@ -149,6 +156,7 @@ describe("management UI host", () => {
     });
     assert.equal(res.status, 200);
     const body = res.json() as { count: number; hits: Array<{ body: string }> };
+    assert.equal(body.count, 1);
     assert.equal(body.hits[0]?.body, "the cat sat on the mat");
   });
 
@@ -163,5 +171,39 @@ describe("management UI host", () => {
   it("404s an unknown API route", async () => {
     const res = await httpGet(port, "/api/nope", { "x-donguri-token": token });
     assert.equal(res.status, 404);
+  });
+});
+
+describe("management UI bind safety", () => {
+  it("refuses a non-loopback uiHost and binds 127.0.0.1 instead", async () => {
+    const tmp = makeTempDir();
+    try {
+      const dbPath = tmp.file("journal.db");
+      const store = new JournalStore(dbPath, new FakeEmbedder());
+      store.init();
+      const config: JournalConfig = {
+        dbPath,
+        originalsDir: tmp.file("originals"),
+        maxOriginalBytes: 25 * 1024 * 1024,
+        pluginsDir: tmp.file("plugins"),
+        pluginsConfigPath: tmp.file("plugins.json"),
+        uiHost: "0.0.0.0",
+        uiPort: 0,
+      };
+      const ctx: JournalContext = {
+        server: undefined as unknown as McpServer,
+        store,
+        originals: new LocalDirStore(tmp.file("originals")),
+        config,
+        log: () => {},
+      };
+      const ui = await startManagementUi(ctx);
+      assert.match(ui.url, /^http:\/\/127\.0\.0\.1:/);
+      const res = await httpGet(ui.port, `/?token=${ui.token}`);
+      assert.equal(res.status, 200);
+      await ui.close();
+    } finally {
+      tmp.cleanup();
+    }
   });
 });
