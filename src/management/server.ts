@@ -65,8 +65,10 @@ function tokenMatches(expected: string, provided: string | null): boolean {
  * we refuse to expose the socket on an external interface (e.g. 0.0.0.0).
  */
 function isBindableLoopback(host: string): boolean {
+  // `host` is the bare literal (brackets already stripped by the caller), since
+  // Node's listen() takes a raw IP, not the URL/bracketed form.
   const h = host.toLowerCase();
-  return h === "localhost" || h === "::1" || h === "[::1]" || /^127(\.\d{1,3}){3}$/.test(h);
+  return h === "localhost" || h === "::1" || /^127(\.\d{1,3}){3}$/.test(h);
 }
 
 /** Reject requests whose Host header isn't a loopback name (DNS-rebinding guard). */
@@ -197,12 +199,17 @@ export function startManagementUi(ctx: JournalContext): Promise<ManagementUi> {
   const token = randomBytes(24).toString("base64url");
   const server = createManagementServer(ctx, token);
   const { uiPort } = ctx.config;
+  // Node's listen() wants a raw IP literal (`::1`), not the bracketed URL form
+  // (`[::1]`); strip brackets before validating/binding.
+  const configured = ctx.config.uiHost;
+  const bareHost =
+    configured.startsWith("[") && configured.endsWith("]") ? configured.slice(1, -1) : configured;
   // Enforce localhost-only at the bind boundary; a non-loopback config value is
   // refused (not silently honored) so the journal can't be exposed on the LAN.
-  const uiHost = isBindableLoopback(ctx.config.uiHost) ? ctx.config.uiHost : "127.0.0.1";
-  if (uiHost !== ctx.config.uiHost) {
+  const uiHost = isBindableLoopback(bareHost) ? bareHost : "127.0.0.1";
+  if (uiHost !== bareHost) {
     ctx.log(
-      `refusing to bind management UI to non-loopback host "${ctx.config.uiHost}"; using 127.0.0.1 (localhost-only by design)`,
+      `refusing to bind management UI to non-loopback host "${configured}"; using 127.0.0.1 (localhost-only by design)`,
     );
   }
 

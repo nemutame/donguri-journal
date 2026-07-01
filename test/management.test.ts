@@ -4,7 +4,7 @@
  * token) that fetch would otherwise pin.
  */
 import assert from "node:assert/strict";
-import { request } from "node:http";
+import { type IncomingHttpHeaders, request } from "node:http";
 import { after, before, describe, it } from "node:test";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { JournalStore } from "../src/db/store.js";
@@ -18,7 +18,7 @@ import { type TempDir, makeTempDir } from "./helpers/tmp.js";
 interface Res {
   status: number;
   contentType: string;
-  headers: Record<string, string | string[] | undefined>;
+  headers: IncomingHttpHeaders;
   body: string;
   json: () => unknown;
 }
