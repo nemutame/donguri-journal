@@ -4,10 +4,12 @@
 
 > A local-first, time-aware journaling **memory** server for AI agents, over MCP.
 
-A squirrel stashes acorns (*donguri*) and digs them up later. donguri-journal does
-the same for your thoughts: a multimodal LLM (Claude, etc.) is the companion and UI,
-and this server is the persistent memory organ behind it — **capture** things casually
-in the flow of conversation, **recall** them across time.
+A squirrel buries far more acorns (*donguri*) than it ever digs back up — it hoards
+without hesitation. donguri-journal takes the same stance: a multimodal LLM (Claude,
+etc.) is the companion and UI, and this server is the persistent memory organ behind
+it. Its core job is to **capture** everything casually in the flow of conversation and
+never lose it. Digging the pile back up — recalling, reviewing, resurfacing — is the
+harder part, and that's what **plugins** are for.
 
 > Design rationale and the full roadmap live in **[docs/DESIGN.md](docs/DESIGN.md)**.
 
