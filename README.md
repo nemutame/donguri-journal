@@ -71,9 +71,9 @@ and runs it. Register it with your MCP client:
 claude mcp add donguri-journal -- npx -y donguri-journal
 ```
 
-Restart your MCP client. On the first capture the embedding model (~90 MB) is downloaded
-and cached once (needs network); everything else runs locally. If your client doesn't
-inherit your shell `PATH` (common with nvm), give an absolute path to `npx`.
+Restart your MCP client. On first use the embedding model (~90 MB) is downloaded and
+cached once (needs network); everything else runs locally. If your client doesn't inherit
+your shell `PATH` (common with nvm), give an absolute path to `npx`.
 
 ### Install with an AI agent
 
@@ -88,7 +88,7 @@ configured. Use command "npx" with args ["-y", "donguri-journal"].
       Windows: %APPDATA%\Claude\claude_desktop_config.json
   - Claude Code — run:  claude mcp add donguri-journal -- npx -y donguri-journal
 Then tell me to fully restart the client, and verify by capturing a short test note and
-recalling it (the first capture downloads a ~90 MB embedding model once, then runs local).
+recalling it (first use downloads a ~90 MB embedding model once, then runs local).
 ```
 
 ### From source (development)
