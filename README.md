@@ -100,20 +100,26 @@ for CLI agents (Claude Code, Codex).
 
 ### Install with an AI agent
 
-Prefer to let an agent do it? Paste this to any agent that can run a shell on your machine
-(e.g. **Claude Code** or **Codex**):
+Prefer to let an agent do it? Paste the prompt below to any agent that can run a shell and
+configure its own MCP client (e.g. **Codex**, **Claude Code**, **Cursor**). It is written
+generically so the agent configures **the client it belongs to** — not some other app:
 
 ```text
-Install the "donguri-journal" MCP server for me. Run:  npm install -g donguri-journal
-Then register it with my MCP client, preserving any servers already configured, as
-command "donguri-journal" (no args):
-  - Claude Desktop — under "mcpServers" in the config JSON:
-      macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-      Windows: %APPDATA%\Claude\claude_desktop_config.json
-  - Claude Code — run:  claude mcp add donguri-journal -- donguri-journal
-Then tell me to fully restart the client, and verify by capturing a short test note and
-recalling it.
+Set up the "donguri-journal" MCP server for me and register it with the MCP client I'm
+using. Only touch THIS client's own MCP configuration — do not read or modify any other
+application's config files.
+
+1. Install it:  npm install -g donguri-journal
+2. Add a local (stdio) MCP server named "donguri-journal" to this client's own MCP config,
+   using whatever mechanism this client normally uses (its config file or its CLI):
+     command: donguri-journal      (no arguments)
+   If a global install isn't possible, use command "npx" with args ["-y", "donguri-journal"].
+   If you're unsure which client to configure, ask me first — don't guess at another app.
+3. Tell me to fully restart the client, then verify by capturing a short test note and
+   recalling it.
 ```
+
+(Exact per-client config snippets are under **Install (recommended)** and **Quick try** above.)
 
 ### From source (development)
 
