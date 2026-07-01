@@ -27,10 +27,7 @@
   "bin": {
     "donguri-journal": "dist/index.js"
   },
-  "files": [
-    "dist",
-    "README.ja.md"
-  ],
+  "files": ["dist", "README.ja.md"],
   "engines": {
     "node": ">=22"
   },
