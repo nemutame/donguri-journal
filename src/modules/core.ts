@@ -7,19 +7,9 @@ import { statSync } from "node:fs";
 import { z } from "zod";
 import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
+import { errorResult, jsonResult } from "../kernel/result.js";
 import { surfacePatterns } from "../review/patterns.js";
 import { generateReview } from "../review/review.js";
-
-function jsonResult(payload: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
-}
-
-function errorResult(message: string) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify({ error: message }) }],
-    isError: true,
-  };
-}
 
 /** Decode strict, canonical base64; returns null for malformed input. */
 function decodeBase64Strict(input: string): Buffer | null {

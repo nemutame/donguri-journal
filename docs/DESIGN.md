@@ -191,8 +191,9 @@ Current (✅) and planned (🔜):
 | `storage_stats` | Capacity: counts, DB size, originals bytes, by source kind / month | ✅ |
 | `delete_entry` | Delete an entry; `mode` = soft (recoverable) or hard (permanent) | ✅ |
 | `open_management_ui` / `open_album` / `close_*` | Launch/stop an opt-in UI module | 🔜 |
-| `list_available_plugins` / `list_installed_plugins` | Plugin discovery | 🔜 |
-| `install_plugin` / `setup_plugin` / `enable_plugin` / `disable_plugin` / `uninstall_plugin` | Plugin lifecycle | 🔜 |
+| `list_installed_plugins` | Installed plugins + capabilities | ✅ |
+| `install_plugin` / `uninstall_plugin` | Local install (propose+confirm, loads live) / uninstall | ✅ |
+| `list_available_plugins` / `setup_plugin` / `enable_plugin` / `disable_plugin` | Registry discovery + richer lifecycle | 🔜 |
 
 Export is intentionally **not** a data-returning tool — see §7.
 
@@ -322,7 +323,9 @@ hardening.
 - **Originals** — local content-addressed storage + `get_original`. ✅
 - **Management layer** — `storage_stats` ✅ and `delete_entry` (soft/hard) ✅ are
   done; export, management UI, and album UI are planned. 🔜
-- **Plugin platform** — contract → registry → hardening (see §9). 🔜
+- **Plugin platform** — contract + kernel ctx ✅, local install + dynamic load
+  (`tools/list_changed`) ✅; hosted registry and capability/isolation hardening
+  are next (see §9). 🔜
 - **Phase 2 — local-first sync** (separate, hard): CRDT (Automerge/Yjs) +
   pluggable transport (P2P via libp2p / relay / cloud storage), with end-to-end
   encryption built in from the start. **No blockchain** (wrong trust model:

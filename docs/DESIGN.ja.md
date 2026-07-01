@@ -187,8 +187,9 @@ MIME と元ファイル名を持つ `<sha256>.json` サイドカー。`original_
 | `storage_stats` | 容量: 件数・DB サイズ・原本バイト・種別/月別 | ✅ |
 | `delete_entry` | エントリ削除。`mode` = soft（復元可）/ hard（完全消去） | ✅ |
 | `open_management_ui` / `open_album` / `close_*` | opt-in UI モジュールの起動/停止 | 🔜 |
-| `list_available_plugins` / `list_installed_plugins` | プラグイン discovery | 🔜 |
-| `install_plugin` / `setup_plugin` / `enable_plugin` / `disable_plugin` / `uninstall_plugin` | プラグインのライフサイクル | 🔜 |
+| `list_installed_plugins` | 導入済みプラグイン＋ケイパビリティ | ✅ |
+| `install_plugin` / `uninstall_plugin` | ローカル導入（提案＋承認・即ロード）/ 削除 | ✅ |
+| `list_available_plugins` / `setup_plugin` / `enable_plugin` / `disable_plugin` | レジストリ discovery ＋ 高度なライフサイクル | 🔜 |
 
 エクスポートは意図的に「データを返すツール」にしない——§7 参照。
 
@@ -305,7 +306,9 @@ sequenceDiagram
 - **原本保存** — ローカル content-addressed ストア＋ `get_original`。✅
 - **管理レイヤ** — `storage_stats` ✅ と `delete_entry`（soft/hard）✅ は完了。
   エクスポート・管理 UI・アルバム UI は計画。🔜
-- **プラグイン基盤** — 契約 → レジストリ → ハードニング（§9）。🔜
+- **プラグイン基盤** — 契約＋kernel ctx ✅、ローカル導入＋動的ロード
+  （`tools/list_changed`）✅。ホスト済みレジストリとケイパビリティ/隔離のハードニングが次
+  （§9）。🔜
 - **Phase 2 — ローカルファースト同期**（独立・難）: CRDT（Automerge/Yjs）＋差し替え可能
   トランスポート（libp2p による P2P / リレー / クラウドストレージ）、E2E 暗号化を最初から
   組み込む。**ブロックチェーンは不採用**（信頼モデルが違う: 単一所有者・複数端末。append-only

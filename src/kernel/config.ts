@@ -12,6 +12,10 @@ export interface JournalConfig {
   originalsDir: string;
   /** Max accepted size of a single original artifact (decoded bytes). */
   maxOriginalBytes: number;
+  /** Directory where installed plugins live (one subdirectory per plugin id). */
+  pluginsDir: string;
+  /** JSON file recording which plugins are installed / enabled. */
+  pluginsConfigPath: string;
 }
 
 const DEFAULT_MAX_ORIGINAL_BYTES = 25 * 1024 * 1024;
@@ -29,5 +33,7 @@ export function loadConfig(): JournalConfig {
     originalsDir: envOr("JOURNAL_ORIGINALS_DIR", join(home, ".journal-mcp", "originals")),
     maxOriginalBytes:
       Number.isFinite(max) && max > 0 ? Math.floor(max) : DEFAULT_MAX_ORIGINAL_BYTES,
+    pluginsDir: envOr("JOURNAL_PLUGINS_DIR", join(home, ".journal-mcp", "plugins")),
+    pluginsConfigPath: envOr("JOURNAL_PLUGINS_CONFIG", join(home, ".journal-mcp", "plugins.json")),
   };
 }

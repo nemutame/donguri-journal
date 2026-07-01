@@ -21,7 +21,9 @@ import { createEmbeddingProvider } from "./embedding/provider.js";
 import { loadConfig } from "./kernel/config.js";
 import { createContext } from "./kernel/context.js";
 import { type JournalModule, registerModules } from "./kernel/module.js";
+import { loadInstalledPlugins } from "./kernel/plugin.js";
 import { coreModule } from "./modules/core.js";
+import { pluginsModule } from "./modules/plugins.js";
 import { createOriginalStore } from "./originals/store.js";
 
 const config = loadConfig();
@@ -34,11 +36,12 @@ const originals = createOriginalStore(config.originalsDir);
 const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 const ctx = createContext({ server, store, originals, config });
 
-// Enabled modules. Opt-in / installed plugins will be appended here later.
-const modules: JournalModule[] = [coreModule];
+// Built-in modules. Installed plugins are loaded separately (see below).
+const modules: JournalModule[] = [coreModule, pluginsModule];
 
 async function main(): Promise<void> {
   await registerModules(ctx, modules);
+  await loadInstalledPlugins(ctx);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   ctx.log(`running on stdio (db: ${config.dbPath})`);
