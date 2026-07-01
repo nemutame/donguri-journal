@@ -19,6 +19,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { statSync } from "node:fs";
 import { type Server, type ServerResponse, createServer } from "node:http";
+import { isIP } from "node:net";
 import { z } from "zod";
 import type { JournalContext } from "../kernel/context.js";
 import { renderApp } from "./ui.js";
@@ -68,7 +69,10 @@ function isBindableLoopback(host: string): boolean {
   // `host` is the bare literal (brackets already stripped by the caller), since
   // Node's listen() takes a raw IP, not the URL/bracketed form.
   const h = host.toLowerCase();
-  return h === "localhost" || h === "::1" || /^127(\.\d{1,3}){3}$/.test(h);
+  if (h === "localhost" || h === "::1") return true;
+  // Any real IPv4 literal in 127.0.0.0/8. isIP() rejects malformed octets (e.g.
+  // 127.999.999.999) that a loose regex would wrongly accept.
+  return isIP(h) === 4 && h.startsWith("127.");
 }
 
 /** Reject requests whose Host header isn't a loopback name (DNS-rebinding guard). */
