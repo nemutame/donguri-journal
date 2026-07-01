@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
 import {
+  type PluginConfig,
   assertAbsoluteDir,
   isValidPluginId,
   loadPluginConfig,
@@ -39,9 +40,25 @@ export const pluginsModule: JournalModule = {
         inputSchema: {},
       },
       async () => {
-        const cfg = await loadPluginConfig(config.pluginsConfigPath);
-        const plugins = [];
+        let cfg: PluginConfig;
+        try {
+          cfg = await loadPluginConfig(config.pluginsConfigPath);
+        } catch (err) {
+          return errorResult(err instanceof Error ? err.message : String(err));
+        }
+        const plugins: Array<{
+          id: string;
+          enabled: boolean;
+          invalid?: boolean;
+          name?: string;
+          version?: string;
+          capabilities?: string[];
+        }> = [];
         for (const entry of cfg.plugins) {
+          if (!isValidPluginId(entry.id)) {
+            plugins.push({ id: entry.id, enabled: entry.enabled, invalid: true });
+            continue;
+          }
           let name: string | undefined;
           let version: string | undefined;
           let capabilities: string[] = [];
@@ -114,25 +131,33 @@ export const pluginsModule: JournalModule = {
           return errorResult(`plugin '${manifest.id}' is already installed; uninstall it first`);
         }
 
-        await mkdir(config.pluginsDir, { recursive: true });
-        await cp(source, dest, { recursive: true });
-
-        const cfg = await loadPluginConfig(config.pluginsConfigPath);
-        cfg.plugins = cfg.plugins.filter((p) => p.id !== manifest.id);
-        cfg.plugins.push({ id: manifest.id, enabled: true });
-        await savePluginConfig(config.pluginsConfigPath, cfg);
+        let cfgBefore: PluginConfig;
+        try {
+          cfgBefore = await loadPluginConfig(config.pluginsConfigPath);
+        } catch (err) {
+          return errorResult(err instanceof Error ? err.message : String(err));
+        }
 
         try {
+          await mkdir(config.pluginsDir, { recursive: true });
+          await cp(source, dest, { recursive: true });
+          const next: PluginConfig = {
+            plugins: [
+              ...cfgBefore.plugins.filter((p) => p.id !== manifest.id),
+              { id: manifest.id, enabled: true },
+            ],
+          };
+          await savePluginConfig(config.pluginsConfigPath, next);
           const mod = await loadPluginModule(dest, manifest);
           await mod.register(ctx);
         } catch (err) {
-          // Roll back a failed load so we don't leave a broken half-install.
+          // Full rollback covering mkdir/cp/save/load: remove any copied files
+          // and restore the prior config.
           await rm(dest, { recursive: true, force: true }).catch(() => {});
-          const rolled = cfg.plugins.filter((p) => p.id !== manifest.id);
-          await savePluginConfig(config.pluginsConfigPath, { plugins: rolled }).catch(() => {});
+          await savePluginConfig(config.pluginsConfigPath, cfgBefore).catch(() => {});
           ctx.log(`install failed for ${manifest.id}:`, err);
           return errorResult(
-            `failed to load plugin after copy: ${err instanceof Error ? err.message : String(err)}`,
+            `failed to install plugin: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
 
@@ -159,10 +184,16 @@ export const pluginsModule: JournalModule = {
         if (!isValidPluginId(id)) {
           return errorResult("invalid plugin id");
         }
-        const cfg = await loadPluginConfig(config.pluginsConfigPath);
+        let cfg: PluginConfig;
+        try {
+          cfg = await loadPluginConfig(config.pluginsConfigPath);
+        } catch (err) {
+          return errorResult(err instanceof Error ? err.message : String(err));
+        }
         const wasInstalled = cfg.plugins.some((p) => p.id === id);
-        cfg.plugins = cfg.plugins.filter((p) => p.id !== id);
-        await savePluginConfig(config.pluginsConfigPath, cfg);
+        await savePluginConfig(config.pluginsConfigPath, {
+          plugins: cfg.plugins.filter((p) => p.id !== id),
+        });
         await rm(pluginDir(ctx, id), { recursive: true, force: true });
         return jsonResult({
           uninstalled: id,

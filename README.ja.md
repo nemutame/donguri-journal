@@ -96,7 +96,7 @@ npm run build
 | `delete_entry` | エントリ削除——`mode: soft`（復元可能な tombstone）/ `hard`（entry＋ベクトル＋孤児原本を完全消去し VACUUM）。 |
 | `list_installed_plugins` | 導入済みプラグインを一覧（有効状態・バージョン・宣言ケイパビリティ）。 |
 | `install_plugin` | ローカルのプラグインを導入。2段階: 提案（マニフェスト＋権限を確認）→ `confirm: true`。再起動なしで即有効。 |
-| `uninstall_plugin` | 導入済みプラグインをディスクとレジストリから削除。 |
+| `uninstall_plugin` | 導入済みプラグインをディスクとレジストリから削除。既に登録済みのツールはサーバー再起動まで残ります。 |
 
 `query_entries` と `recall_related` は意図的に別経路です（LLM が問いに応じて、正確な
 絞り込みか意味かを選ぶ）。`generate_review` と `surface_patterns` は、描画済みの PNG

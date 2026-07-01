@@ -97,7 +97,7 @@ each).
 | `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
 | `list_installed_plugins` | List installed plugins with their enabled state, version, and declared capabilities. |
 | `install_plugin` | Install a local plugin. Two-step: propose (see manifest + capabilities), then `confirm: true`. Loads immediately — no restart. |
-| `uninstall_plugin` | Remove an installed plugin from disk and the registry. |
+| `uninstall_plugin` | Remove an installed plugin from disk and the registry. Tools it already registered stay available until the server restarts. |
 
 `query_entries` and `recall_related` are intentionally separate retrieval paths; the
 LLM picks based on the question (precise filter vs. meaning). `generate_review` and

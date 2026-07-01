@@ -14,8 +14,8 @@
  * are surfaced for consent but not yet sandboxed.
  */
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import type { JournalContext } from "./context.js";
@@ -46,16 +46,24 @@ export type PluginConfig = z.infer<typeof pluginConfigSchema>;
 
 export async function loadPluginConfig(path: string): Promise<PluginConfig> {
   if (!existsSync(path)) return { plugins: [] };
+  const raw = await readFile(path, "utf8");
   try {
-    return pluginConfigSchema.parse(JSON.parse(await readFile(path, "utf8")));
-  } catch {
-    return { plugins: [] };
+    return pluginConfigSchema.parse(JSON.parse(raw));
+  } catch (err) {
+    // Do NOT silently fall back to empty: a caller that then saves would wipe
+    // the enabled-plugins list. Surface it so callers can abort.
+    throw new Error(
+      `plugin config at ${path} is unreadable/invalid: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
 export async function savePluginConfig(path: string, cfg: PluginConfig): Promise<void> {
   await mkdir(resolve(path, ".."), { recursive: true });
-  await writeFile(path, JSON.stringify(cfg, null, 2));
+  // Write atomically (tmp + rename) so an interrupted write can't corrupt it.
+  const tmp = `${path}.tmp`;
+  await writeFile(tmp, JSON.stringify(cfg, null, 2));
+  await rename(tmp, path);
 }
 
 /** Read + validate a plugin manifest from a plugin directory. */
@@ -65,9 +73,11 @@ export async function readManifest(dir: string): Promise<PluginManifest> {
     throw new Error(`no donguri.plugin.json in ${dir}`);
   }
   const manifest = manifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
-  // `main` must stay inside the plugin directory.
+  // `main` must stay inside the plugin directory. Check on a path boundary (not
+  // a bare prefix) so a sibling like `<dir>-evil` can't pass the guard.
+  const base = resolve(dir);
   const entry = resolve(dir, manifest.main);
-  if (!entry.startsWith(resolve(dir))) {
+  if (entry !== base && !entry.startsWith(base + sep)) {
     throw new Error("manifest.main escapes the plugin directory");
   }
   return manifest;
@@ -102,7 +112,13 @@ function isJournalModule(value: unknown): value is JournalModule {
 /** Load and register every enabled installed plugin. Never throws — a bad
  *  plugin is logged and skipped so the server still starts. */
 export async function loadInstalledPlugins(ctx: JournalContext): Promise<void> {
-  const cfg = await loadPluginConfig(ctx.config.pluginsConfigPath);
+  let cfg: PluginConfig;
+  try {
+    cfg = await loadPluginConfig(ctx.config.pluginsConfigPath);
+  } catch (err) {
+    ctx.log("plugin config unreadable; loading no plugins:", err);
+    return;
+  }
   for (const entry of cfg.plugins) {
     if (!entry.enabled) continue;
     if (!PLUGIN_ID.test(entry.id)) {
