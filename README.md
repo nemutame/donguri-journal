@@ -2,6 +2,8 @@
 
 **English** | [日本語](README.ja.md)
 
+[![npm](https://img.shields.io/npm/v/donguri-journal)](https://www.npmjs.com/package/donguri-journal)
+
 > A local-first, time-aware journaling **memory** server for AI agents, over MCP.
 
 A squirrel buries far more acorns (*donguri*) than it ever digs back up — it hoards
@@ -45,48 +47,59 @@ open-ended part, and that's what **plugins** extend.
 
 ## Setup
 
-### Install with an AI agent (no CLI needed)
+### Quick start
 
-donguri-journal is an MCP server for AI agents — so let an agent set it up. Paste the
-prompt below to any coding agent that can run a shell and edit files on your machine
-(e.g. **Claude Code**, or **Claude Desktop** with filesystem/terminal access). It will
-clone, build, register the server with your MCP client, and verify it — you don't type
-any commands yourself.
+No clone or build needed — [`npx`](https://www.npmjs.com/package/donguri-journal) fetches
+and runs it. Register it with your MCP client:
 
-```text
-Set up "donguri-journal", a local-first journaling memory MCP server, on my machine,
-end to end. Don't ask me to run terminal commands — you run them.
+**Claude Desktop** (`claude_desktop_config.json`):
 
-1. Make sure Node.js 22+ is available (install it via nvm if it's missing).
-2. Clone https://github.com/nemutame/donguri-journal into a stable location such as
-   ~/tools/donguri-journal (if it already exists, git pull instead).
-3. In that directory run: npm ci && npm run build  (this produces dist/index.js).
-4. Register it with my MCP client, preserving any servers already configured:
-   - Claude Desktop — edit the config JSON and add a "donguri-journal" entry under
-     "mcpServers" with "command": "node" and "args": ["<ABS_PATH>/dist/index.js"]:
-       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-       Windows: %APPDATA%\Claude\claude_desktop_config.json
-     If the client doesn't inherit my shell PATH (common with nvm), use the absolute
-     path to the node binary instead of "node".
-   - Claude Code — run:  claude mcp add donguri-journal -- node <ABS_PATH>/dist/index.js
-5. Tell me to fully restart the MCP client. Then verify by capturing a short test note
-   and recalling it — the first capture downloads a ~90 MB embedding model once
-   (needs network), after which everything runs locally.
-
-Keep everything on my machine: don't deploy anything or send my data anywhere.
+```json
+{
+  "mcpServers": {
+    "donguri-journal": {
+      "command": "npx",
+      "args": ["-y", "donguri-journal"]
+    }
+  }
+}
 ```
 
-### Manual setup
+**Claude Code:**
 
-Prefer to do it yourself? Build from a local checkout:
+```bash
+claude mcp add donguri-journal -- npx -y donguri-journal
+```
+
+Restart your MCP client. On first use the embedding model (~90 MB) is downloaded and
+cached once (needs network); everything else runs locally. If your client doesn't inherit
+your shell `PATH` (common with nvm), give an absolute path to `npx`.
+
+### Install with an AI agent
+
+Prefer to let an agent do it? Paste this to any agent that can edit files on your machine
+(e.g. **Claude Code**, or **Claude Desktop** with filesystem access):
+
+```text
+Add the "donguri-journal" MCP server to my MCP client, preserving any servers already
+configured. Use command "npx" with args ["-y", "donguri-journal"].
+  - Claude Desktop — add it under "mcpServers" in the config JSON:
+      macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+      Windows: %APPDATA%\Claude\claude_desktop_config.json
+  - Claude Code — run:  claude mcp add donguri-journal -- npx -y donguri-journal
+Then tell me to fully restart the client, and verify by capturing a short test note and
+recalling it (first use downloads a ~90 MB embedding model once, then runs local).
+```
+
+### From source (development)
+
+For contributing or running an unreleased build, build from a checkout and point your
+client at the built entry:
 
 ```bash
 npm ci
 npm run build
 ```
-
-Then register it with your MCP client. Example (Claude Desktop,
-`claude_desktop_config.json`):
 
 ```jsonc
 {
@@ -99,10 +112,8 @@ Then register it with your MCP client. Example (Claude Desktop,
 }
 ```
 
-On first use the embedding model (~90 MB) is downloaded and cached automatically
-(needs network once). If your MCP client does not inherit your shell `PATH` (common
-with nvm), use an absolute path to `node`, e.g.
-`/home/you/.nvm/versions/node/v22.x.y/bin/node`.
+If your MCP client does not inherit your shell `PATH` (common with nvm), use an absolute
+path to `node`, e.g. `/home/you/.nvm/versions/node/v22.x.y/bin/node`.
 
 ### Configuration
 
