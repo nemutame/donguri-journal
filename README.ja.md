@@ -99,20 +99,25 @@ CLI エージェント（Claude Code / Codex）では概ね快適です。
 
 ### AI エージェントで導入
 
-エージェントに任せたい場合は、シェルを実行できるエージェント（例: **Claude Code** や
-**Codex**）に下を貼り付けてください:
+エージェントに任せたい場合は、シェルを実行でき、自分の MCP クライアントを設定できる
+エージェント（例: **Codex**、**Claude Code**、**Cursor**）に下を貼り付けてください。
+**そのエージェント自身が属するクライアント**を設定するよう、汎用的に書いてあります:
 
 ```text
-「donguri-journal」MCP サーバーを入れて。まず実行:  npm install -g donguri-journal
-そのあと、既存のサーバー設定を保ったまま、command "donguri-journal"（引数なし）で
-私の MCP クライアントに登録して:
-  - Claude Desktop — 設定 JSON の "mcpServers" の下に追加:
-      macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-      Windows: %APPDATA%\Claude\claude_desktop_config.json
-  - Claude Code — 実行:  claude mcp add donguri-journal -- donguri-journal
-そのあとクライアントを完全に再起動するよう私に伝えて、短いテストメモを capture して
-recall し動作確認して。
+「donguri-journal」MCP サーバーをセットアップして、私が使っている MCP クライアントに登録して。
+設定するのは**今あなたがいる（＝私が使っている）このクライアント自身**の MCP 設定だけにして、
+他のアプリの設定ファイルは読んだり書き換えたりしないで。
+
+1. インストール:  npm install -g donguri-journal
+2. このクライアントが通常使う方法（設定ファイル or CLI）で、ローカル(stdio)の MCP サーバー
+   "donguri-journal" を追加:
+     command: donguri-journal      （引数なし）
+   グローバルインストールが無理なら command "npx" / args ["-y", "donguri-journal"]。
+   どのクライアントを設定すべきか分からなければ、勝手に別アプリを触らず私に確認して。
+3. クライアントを完全に再起動するよう私に伝えて、短いテストメモを capture→recall で確認して。
 ```
+
+（クライアント別の正確な設定例は上の **インストール（推奨）** / **お試し（npx…）** を参照）
 
 ### ソースから（開発向け）
 
