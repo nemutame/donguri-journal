@@ -47,12 +47,40 @@ open-ended part, and that's what **plugins** extend.
 
 ## Setup
 
-### Quick start
+### Install (recommended)
 
-No clone or build needed — [`npx`](https://www.npmjs.com/package/donguri-journal) fetches
-and runs it. Register it with your MCP client:
+Install once, globally, then point your MCP client at the installed command. This is the
+most reliable path — because the install happens **once** (not on every launch), the
+server starts instantly on every client (Claude Desktop, Claude Code, Codex, Cursor, …):
+
+```bash
+npm install -g donguri-journal
+```
 
 **Claude Desktop** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "donguri-journal": {
+      "command": "donguri-journal"
+    }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add donguri-journal -- donguri-journal
+```
+
+Restart your MCP client. On first use the embedding model is downloaded and cached once
+(needs network); everything else runs locally.
+
+### Quick try (npx, zero-install)
+
+To try it without installing anything, `npx` fetches and runs it on demand:
 
 ```json
 {
@@ -65,30 +93,26 @@ and runs it. Register it with your MCP client:
 }
 ```
 
-**Claude Code:**
-
-```bash
-claude mcp add donguri-journal -- npx -y donguri-journal
-```
-
-Restart your MCP client. On first use the embedding model (~90 MB) is downloaded and
-cached once (needs network); everything else runs locally. If your client doesn't inherit
-your shell `PATH` (common with nvm), give an absolute path to `npx`.
+Caveat: the **first** launch downloads the whole dependency tree and can be slow. On
+**Windows + Claude Desktop** it may exceed the client's startup window and show *"Server
+disconnected"* — use the global install above there. `npx` is smooth on macOS/Linux and
+for CLI agents (Claude Code, Codex).
 
 ### Install with an AI agent
 
-Prefer to let an agent do it? Paste this to any agent that can edit files on your machine
-(e.g. **Claude Code**, or **Claude Desktop** with filesystem access):
+Prefer to let an agent do it? Paste this to any agent that can run a shell on your machine
+(e.g. **Claude Code** or **Codex**):
 
 ```text
-Add the "donguri-journal" MCP server to my MCP client, preserving any servers already
-configured. Use command "npx" with args ["-y", "donguri-journal"].
-  - Claude Desktop — add it under "mcpServers" in the config JSON:
+Install the "donguri-journal" MCP server for me. Run:  npm install -g donguri-journal
+Then register it with my MCP client, preserving any servers already configured, as
+command "donguri-journal" (no args):
+  - Claude Desktop — under "mcpServers" in the config JSON:
       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
       Windows: %APPDATA%\Claude\claude_desktop_config.json
-  - Claude Code — run:  claude mcp add donguri-journal -- npx -y donguri-journal
+  - Claude Code — run:  claude mcp add donguri-journal -- donguri-journal
 Then tell me to fully restart the client, and verify by capturing a short test note and
-recalling it (first use downloads a ~90 MB embedding model once, then runs local).
+recalling it.
 ```
 
 ### From source (development)
@@ -114,6 +138,16 @@ npm run build
 
 If your MCP client does not inherit your shell `PATH` (common with nvm), use an absolute
 path to `node`, e.g. `/home/you/.nvm/versions/node/v22.x.y/bin/node`.
+
+### Optional: PNG charts
+
+`generate_review` and `surface_patterns` can attach a PNG chart, rendered with
+[`sharp`](https://www.npmjs.com/package/sharp). sharp is an **optional** dependency — it
+is not installed by default (its large native binaries would make the base install heavier
+and less reliable). Without it, those tools return their structured data and hints as
+usual, just no image. To enable charts, install sharp in the same scope as the server —
+e.g. `npm install -g sharp` for a global install, or `npm install sharp` from a source
+checkout.
 
 ### Configuration
 
