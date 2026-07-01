@@ -22,6 +22,7 @@ import { loadConfig } from "./kernel/config.js";
 import { createContext } from "./kernel/context.js";
 import { type JournalModule, registerModules } from "./kernel/module.js";
 import { loadInstalledPlugins } from "./kernel/plugin.js";
+import { managementModule } from "./management/module.js";
 import { coreModule } from "./modules/core.js";
 import { pluginsModule } from "./modules/plugins.js";
 import { createOriginalStore } from "./originals/store.js";
@@ -37,7 +38,7 @@ const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 const ctx = createContext({ server, store, originals, config });
 
 // Built-in modules. Installed plugins are loaded separately (see below).
-const modules: JournalModule[] = [coreModule, pluginsModule];
+const modules: JournalModule[] = [coreModule, managementModule, pluginsModule];
 
 async function main(): Promise<void> {
   await registerModules(ctx, modules);
