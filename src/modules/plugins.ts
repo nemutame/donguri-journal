@@ -191,10 +191,19 @@ export const pluginsModule: JournalModule = {
           return errorResult(err instanceof Error ? err.message : String(err));
         }
         const wasInstalled = cfg.plugins.some((p) => p.id === id);
-        await savePluginConfig(config.pluginsConfigPath, {
-          plugins: cfg.plugins.filter((p) => p.id !== id),
-        });
-        await rm(pluginDir(ctx, id), { recursive: true, force: true });
+        try {
+          // Delete from disk BEFORE updating the registry, so a failed rm can't
+          // leave an unlisted-but-present directory that blocks reinstall.
+          await rm(pluginDir(ctx, id), { recursive: true, force: true });
+          await savePluginConfig(config.pluginsConfigPath, {
+            plugins: cfg.plugins.filter((p) => p.id !== id),
+          });
+        } catch (err) {
+          ctx.log(`uninstall failed for ${id}:`, err);
+          return errorResult(
+            `failed to uninstall plugin: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
         return jsonResult({
           uninstalled: id,
           was_installed: wasInstalled,

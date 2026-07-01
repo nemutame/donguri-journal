@@ -14,7 +14,7 @@
  * are surfaced for consent but not yet sandboxed.
  */
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -66,6 +66,26 @@ export async function savePluginConfig(path: string, cfg: PluginConfig): Promise
   await rename(tmp, path);
 }
 
+/**
+ * Resolve the entry file and prove it stays inside the plugin directory. Uses
+ * realpath so a symlink under the plugin dir can't point `import()` outside, and
+ * checks on a path boundary (not a bare prefix) so a sibling like `<dir>-evil`
+ * can't pass either. Returns the real (canonical) entry path.
+ */
+async function safeEntryPath(dir: string, main: string): Promise<string> {
+  const base = await realpath(dir);
+  let entry: string;
+  try {
+    entry = await realpath(resolve(dir, main));
+  } catch {
+    throw new Error("manifest.main does not resolve to a file inside the plugin directory");
+  }
+  if (entry !== base && !entry.startsWith(base + sep)) {
+    throw new Error("manifest.main escapes the plugin directory");
+  }
+  return entry;
+}
+
 /** Read + validate a plugin manifest from a plugin directory. */
 export async function readManifest(dir: string): Promise<PluginManifest> {
   const manifestPath = join(dir, "donguri.plugin.json");
@@ -73,13 +93,7 @@ export async function readManifest(dir: string): Promise<PluginManifest> {
     throw new Error(`no donguri.plugin.json in ${dir}`);
   }
   const manifest = manifestSchema.parse(JSON.parse(await readFile(manifestPath, "utf8")));
-  // `main` must stay inside the plugin directory. Check on a path boundary (not
-  // a bare prefix) so a sibling like `<dir>-evil` can't pass the guard.
-  const base = resolve(dir);
-  const entry = resolve(dir, manifest.main);
-  if (entry !== base && !entry.startsWith(base + sep)) {
-    throw new Error("manifest.main escapes the plugin directory");
-  }
+  await safeEntryPath(dir, manifest.main);
   return manifest;
 }
 
@@ -88,7 +102,7 @@ export async function loadPluginModule(
   dir: string,
   manifest: PluginManifest,
 ): Promise<JournalModule> {
-  const entry = resolve(dir, manifest.main);
+  const entry = await safeEntryPath(dir, manifest.main);
   const imported = (await import(pathToFileURL(entry).href)) as {
     default?: unknown;
     module?: unknown;
