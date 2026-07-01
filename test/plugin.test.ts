@@ -47,7 +47,7 @@ describe("plugin manifest + safeEntryPath", () => {
     await assert.rejects(() => readManifest(dir), /escapes|does not resolve/);
   });
 
-  it("rejects an entry that escapes via a symlink", async () => {
+  it("rejects an entry that escapes via a symlink", async (t) => {
     const dir = tmp.file("linky");
     mkdirSync(dir, { recursive: true });
     const secret = tmp.file("secret.js");
@@ -55,7 +55,8 @@ describe("plugin manifest + safeEntryPath", () => {
     try {
       symlinkSync(secret, join(dir, "index.js"));
     } catch {
-      return; // symlinks unsupported on this platform — skip
+      t.skip("symlinks unsupported on this platform");
+      return;
     }
     writeManifest(dir, { id: "linky", name: "L", version: "1.0.0", main: "index.js" });
     await assert.rejects(() => readManifest(dir), /escapes|does not resolve/);
