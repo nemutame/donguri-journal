@@ -129,7 +129,8 @@ npm run build
 ```bash
 npm run lint        # Biome（lint + フォーマットチェック）
 npm run lint:fix    # 自動修正
-npm run typecheck   # tsc --noEmit
+npm run typecheck   # tsc（src + テスト）
+npm test            # tsx 経由の node:test
 npm run build       # tsc -> dist/
 ```
 
@@ -137,7 +138,7 @@ npm run build       # tsc -> dist/
 
 - Node 22 は `.nvmrc` で固定（`nvm use`）。
 - `main` は保護されています——ブランチを切って Pull Request を作成してください。
-- すべての PR は **CI**（lint + typecheck + build）と **CodeRabbit** レビューでゲート
+- すべての PR は **CI**（lint + typecheck + build + テスト）と **CodeRabbit** レビューでゲート
   され、両方の通過後にマージできます。
 
 ## ライセンス

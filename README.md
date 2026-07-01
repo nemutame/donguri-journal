@@ -132,7 +132,8 @@ Contributions are welcome — **issues and PRs in Japanese are fine too**. See
 ```bash
 npm run lint        # Biome (lint + format check)
 npm run lint:fix    # auto-fix
-npm run typecheck   # tsc --noEmit
+npm run typecheck   # tsc (src + tests)
+npm test            # node:test via tsx
 npm run build       # tsc -> dist/
 ```
 
@@ -140,7 +141,7 @@ Workflow:
 
 - Node 22 is pinned via `.nvmrc` (`nvm use`).
 - `main` is protected — work on a branch and open a pull request.
-- Every PR is gated by **CI** (lint + typecheck + build) and a **CodeRabbit** review;
+- Every PR is gated by **CI** (lint + typecheck + build + tests) and a **CodeRabbit** review;
   both must pass before merge.
 
 ## License
