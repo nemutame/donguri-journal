@@ -8,8 +8,9 @@ A squirrel buries far more acorns (*donguri*) than it ever digs back up — it h
 without hesitation. donguri-journal takes the same stance: a multimodal LLM (Claude,
 etc.) is the companion and UI, and this server is the persistent memory organ behind
 it. Its core job is to **capture** everything casually in the flow of conversation and
-never lose it. Digging the pile back up — recalling, reviewing, resurfacing — is the
-harder part, and that's what **plugins** are for.
+never lose it, then let you **recall** it across time. Digging the pile back up
+*well* — richer review, resurfacing, new lenses on the hoard — is the harder,
+open-ended part, and that's what **plugins** extend.
 
 > Design rationale and the full roadmap live in **[docs/DESIGN.md](docs/DESIGN.md)**.
 

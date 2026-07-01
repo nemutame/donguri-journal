@@ -14,9 +14,9 @@ a feature is not yet built, it is marked **planned**.
 
 The mascot is a squirrel that hoards acorns (*donguri*) far faster than it ever digs
 them back up — which maps onto the split at the heart of donguri-journal. The core
-exists to **capture** everything and never lose it; digging the pile back up —
-**recall**, review, resurfacing — is the harder, open-ended side that **plugins**
-extend.
+exists to **capture** everything and never lose it, and to **recall** it across time;
+digging the pile back up *further* — richer review, resurfacing, new lenses on the
+hoard — is the harder, open-ended side that **plugins** extend.
 
 ---
 
