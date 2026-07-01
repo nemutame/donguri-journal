@@ -3,8 +3,10 @@
  *
  * Reviews return rendered PNG charts (plus structured data and presentation
  * hints) so the front-end LLM can present richly — markdown alone is not enough.
- * sharp is imported lazily so the server starts even where it is unavailable;
- * callers fall back to data-only output if rendering throws.
+ * sharp is an OPTIONAL peer dependency (not installed by default, to keep the
+ * base install light and reliable). It is imported lazily, so the server starts
+ * fine without it; callers fall back to data-only output if the import or render
+ * throws. Install `sharp` alongside the server to enable PNG charts.
  */
 
 export interface BarDatum {

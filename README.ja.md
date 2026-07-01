@@ -46,12 +46,40 @@
 
 ## セットアップ
 
-### クイックスタート
+### インストール（推奨）
 
-クローンもビルドも不要——[`npx`](https://www.npmjs.com/package/donguri-journal) が取得して
-実行します。MCP クライアントに登録するだけです。
+一度だけグローバルにインストールし、MCP クライアントからはそのコマンドを指すだけ。
+**インストールは一度きり**（起動のたびに走らない）なので、どのクライアント（Claude
+Desktop / Claude Code / Codex / Cursor …）でも即起動する、いちばん確実な方法です:
+
+```bash
+npm install -g donguri-journal
+```
 
 **Claude Desktop**（`claude_desktop_config.json`）:
+
+```json
+{
+  "mcpServers": {
+    "donguri-journal": {
+      "command": "donguri-journal"
+    }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add donguri-journal -- donguri-journal
+```
+
+MCP クライアントを再起動してください。初回利用時に埋め込みモデルが一度だけ
+ダウンロード・キャッシュされます（ネットワーク必要）。以降はすべてローカルで動作します。
+
+### お試し（npx・インストール不要）
+
+何もインストールせず試すなら、`npx` がその場で取得して実行します:
 
 ```json
 {
@@ -64,31 +92,26 @@
 }
 ```
 
-**Claude Code:**
-
-```bash
-claude mcp add donguri-journal -- npx -y donguri-journal
-```
-
-MCP クライアントを再起動してください。初回利用時に埋め込みモデル（約 90 MB）が
-一度だけダウンロード・キャッシュされます（ネットワーク必要）。以降はすべてローカルで動作。
-クライアントがシェルの `PATH` を引き継がない場合（nvm で頻発）は、`npx` を絶対パスで
-指定してください。
+注意: **初回**起動は依存ツリー全体をダウンロードするため重く、**Windows + Claude
+Desktop** ではクライアントの起動待ちを超えて *「Server disconnected」* になることが
+あります。その場合は上のグローバルインストールを使ってください。`npx` は macOS/Linux や
+CLI エージェント（Claude Code / Codex）では概ね快適です。
 
 ### AI エージェントで導入
 
-エージェントに任せたい場合は、ファイルを編集できるエージェント（例: **Claude Code**、
-またはファイル権限を与えた **Claude Desktop**）に下を貼り付けてください:
+エージェントに任せたい場合は、シェルを実行できるエージェント（例: **Claude Code** や
+**Codex**）に下を貼り付けてください:
 
 ```text
-「donguri-journal」MCP サーバーを、既存のサーバー設定を保ったまま私の MCP クライアントに
-追加して。command は "npx"、args は ["-y", "donguri-journal"]。
+「donguri-journal」MCP サーバーを入れて。まず実行:  npm install -g donguri-journal
+そのあと、既存のサーバー設定を保ったまま、command "donguri-journal"（引数なし）で
+私の MCP クライアントに登録して:
   - Claude Desktop — 設定 JSON の "mcpServers" の下に追加:
       macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
       Windows: %APPDATA%\Claude\claude_desktop_config.json
-  - Claude Code — 実行:  claude mcp add donguri-journal -- npx -y donguri-journal
+  - Claude Code — 実行:  claude mcp add donguri-journal -- donguri-journal
 そのあとクライアントを完全に再起動するよう私に伝えて、短いテストメモを capture して
-recall し動作確認して（初回利用時に約 90 MB のモデルを一度だけ DL、以降はローカル）。
+recall し動作確認して。
 ```
 
 ### ソースから（開発向け）
@@ -114,6 +137,15 @@ npm run build
 
 MCP クライアントがシェルの `PATH` を引き継がない場合（nvm でよく起きます）は、`node` を
 絶対パスで指定してください。例: `/home/you/.nvm/versions/node/v22.x.y/bin/node`
+
+### 任意: PNG チャート
+
+`generate_review` と `surface_patterns` は [`sharp`](https://www.npmjs.com/package/sharp)
+で描画した PNG チャートを添付できます。sharp は**任意（optional）依存**で、既定では
+インストールされません（大きなネイティブバイナリが基本インストールを重く・不安定に
+するため）。無くても両ツールは構造化データとヒントを通常どおり返し、画像だけが省かれます。
+チャートを有効にするには、サーバーと同じスコープに sharp を入れてください——例えば
+グローバルインストールなら `npm install -g sharp`、ソースからなら `npm install sharp`。
 
 ### 設定
 
