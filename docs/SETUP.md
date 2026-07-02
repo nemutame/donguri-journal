@@ -111,6 +111,34 @@ routine — and offer to copy it into the user's own instructions file (`AGENTS.
 Three rules matter: check **once per session** (not on every call), **never update without
 consent** (a global install changes system state), and **fail silently offline**.
 
+## 7. What the server can do (capability overview)
+
+Read this once after setup to orient yourself. The MCP handshake also delivers a short
+version of it as server `instructions`, if your client surfaces them.
+
+**Core tools (always on):**
+
+- `capture` — stash a note / moment / file (optionally with the original bytes)
+- `query_entries` — structured lookup (dates, tags, kinds)
+- `recall_related` — semantic search over past entries
+- `generate_review` / `surface_patterns` — periodic reviews and recurring themes
+- `update_entry_status` / `link_entries` — annotations and entry-to-entry links
+- `get_original`, `delete_entry` (soft/hard), `reindex`, `storage_stats`
+- `open_management_ui` — read-only local web console
+
+**Opt-in features — their tools stay hidden until enabled.** `list_features` shows
+what exists; `enable_feature` turns one on live (no restart). Currently:
+
+- **Bullet Journal lens** (`bujo`) — read-only `bujo_day` / `bujo_month` / `bujo_future` /
+  `bujo_reconcile` (daily, monthly and future logs plus the migration ritual). Writes
+  still go through the generic tools above; a lens is only a view.
+
+**Plugins:** `list_installed_plugins` / `install_plugin` / `uninstall_plugin` — local
+install with explicit owner consent.
+
+> **For agents:** if the user asks for something you don't see a tool for (say, "show
+> my daily log"), check `list_features` before answering that the server can't do it.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
