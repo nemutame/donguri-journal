@@ -5,6 +5,12 @@
  */
 import { statSync } from "node:fs";
 import { z } from "zod";
+import {
+  annotatedMetaSchema,
+  linkRelSchema,
+  reservedAnnotationsSchema,
+} from "../db/annotations.js";
+import { LinkError } from "../db/store.js";
 import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
 import { errorResult, jsonResult } from "../kernel/result.js";
@@ -54,7 +60,11 @@ export const coreModule: JournalModule = {
           "locally and sets `original_ref` for you, so it can be re-viewed later via get_original. " +
           "Set `occurred_at` when the event happened at a different time than now (e.g. 'yesterday', " +
           "'last week'); otherwise it defaults to the capture time. Identical captures are " +
-          "de-duplicated automatically.",
+          "de-duplicated automatically. When the content has a clear nature, annotate `meta` with " +
+          "the view-neutral keys (`nature`, `status`, `priority`, `due`, `delegated_to`, " +
+          "`granularity`) — they cost nothing now and power journal views (daily/monthly logs) " +
+          "later. When this entry carries over or revisits an earlier entry, add a `links` " +
+          "relation to it.",
         inputSchema: {
           body: z
             .string()
@@ -97,10 +107,16 @@ export const coreModule: JournalModule = {
                 "from media/a URL (lossy, may be re-extracted later). Defaults to 'verbatim'.",
             ),
           tags: z.array(z.string()).optional().describe("Optional labels for structured lookup."),
-          meta: z
-            .record(z.unknown())
+          meta: annotatedMetaSchema
             .optional()
-            .describe("Optional structured metadata (e.g. mood, location, people)."),
+            .describe(
+              "Optional structured metadata. Reserved view-neutral keys (validated): `nature` " +
+                "('action' = something to do / 'event' = something that happened / 'note' = an " +
+                "observation), `status` for actions ('open'/'done'/'dropped'), `priority` (true), " +
+                "`due` (YYYY-MM-DD), `delegated_to` (who), `granularity` ('day'/'month' — 'month' " +
+                "means it belongs to a month, not a specific day; set occurred_at to the 1st of " +
+                "that month). Other keys (mood, location, people, ...) are free-form.",
+            ),
           occurred_at: z
             .string()
             .datetime({ offset: true })
@@ -109,13 +125,34 @@ export const coreModule: JournalModule = {
               "ISO-8601 timestamp (e.g. 2026-06-20T09:00:00Z) of when the event actually " +
                 "happened, if different from now. Must include a time so range queries stay correct.",
             ),
+          links: z
+            .array(
+              z.object({
+                rel: linkRelSchema.describe(
+                  "'continues' = this entry carries over / rewrites the earlier one (e.g. an " +
+                    "unfinished task migrated to today); 'references' = general association.",
+                ),
+                to: z.number().int().describe("Id of the EARLIER entry this new one points at."),
+              }),
+            )
+            .optional()
+            .describe(
+              "Typed relations from this NEW entry to earlier ones (links always point new → old; " +
+                "the past is never modified). Use when carrying over an open action to today, or " +
+                "when this memory clearly relates back to a previous one.",
+            ),
         },
       },
       async (args) => {
         const { original_data, original_mime, original_filename, ...entry } = args;
         if (!original_data || original_data.length === 0) {
           // Text-only capture (or an external original_ref passed through as-is).
-          return jsonResult(await store.insert(entry));
+          try {
+            return jsonResult(await store.insert(entry));
+          } catch (err) {
+            if (err instanceof LinkError) return errorResult(err.message);
+            throw err;
+          }
         }
         // Coarse guard avoids decoding an absurd payload; the exact size check is
         // on the decoded length, so a valid base64 right at the limit is not
@@ -136,7 +173,13 @@ export const coreModule: JournalModule = {
         // Insert the entry FIRST, then save + attach the original, so a dedupe
         // (or an insert failure) can never leave a saved-but-unreferenced original.
         entry.original_ref = undefined;
-        const result = await store.insert(entry);
+        let result: Awaited<ReturnType<typeof store.insert>>;
+        try {
+          result = await store.insert(entry);
+        } catch (err) {
+          if (err instanceof LinkError) return errorResult(err.message);
+          throw err;
+        }
         const existingRef = result.deduped ? store.getOriginalRef(result.id) : null;
         if (existingRef) {
           return jsonResult({ ...result, original_ref: existingRef });
@@ -159,6 +202,70 @@ export const coreModule: JournalModule = {
           return jsonResult({ ...result, original_ref: existing });
         }
         return errorResult("The entry was removed before its original could be attached.");
+      },
+    );
+
+    server.registerTool(
+      "update_entry_status",
+      {
+        title: "Update an entry's annotations (status / due / delegation)",
+        description:
+          "Update the view-neutral annotations of an existing entry — primarily an action's " +
+          "lifecycle: mark it 'done' or 'dropped' (terminal), reopen it with 'open', set a due " +
+          "date, mark it priority, or record who it was delegated to. Only the annotation " +
+          "(`meta`) changes; the entry's text and timestamps are immutable. NOTE: carrying an " +
+          "unfinished action over to another day is NOT a status change — capture a NEW entry " +
+          "with a `links: [{rel: 'continues', to: <old id>}]` relation instead; the old entry " +
+          "then renders as migrated automatically.",
+        inputSchema: {
+          id: z.number().int().describe("The entry id to annotate."),
+          status: reservedAnnotationsSchema.shape.status,
+          priority: reservedAnnotationsSchema.shape.priority,
+          due: reservedAnnotationsSchema.shape.due,
+          delegated_to: reservedAnnotationsSchema.shape.delegated_to,
+        },
+      },
+      async (args) => {
+        const { id, ...patch } = args;
+        const fields = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+        if (Object.keys(fields).length === 0) {
+          return errorResult(
+            "Provide at least one annotation to update (status / priority / due / delegated_to).",
+          );
+        }
+        const meta = store.updateAnnotations(id, fields);
+        if (meta === null) {
+          return jsonResult({ id, updated: false });
+        }
+        return jsonResult({ id, updated: true, meta });
+      },
+    );
+
+    server.registerTool(
+      "link_entries",
+      {
+        title: "Link two entries (typed relation)",
+        description:
+          "Add a typed relation between two existing entries, pointing from the NEWER entry to " +
+          "the EARLIER one (links always go new → old; the past is never modified). Use " +
+          "`rel: 'continues'` when from_id carries over / rewrites to_id (an unfinished task " +
+          "migrated forward), or `rel: 'references'` for a general association. Prefer passing " +
+          "`links` directly on capture; use this tool to relate entries after the fact. " +
+          "Idempotent — re-adding the same link is a no-op.",
+        inputSchema: {
+          from_id: z.number().int().describe("The newer entry (the one doing the pointing)."),
+          rel: linkRelSchema.describe("'continues' (carry-over / rewrite) or 'references'."),
+          to_id: z.number().int().describe("The earlier entry being pointed at."),
+        },
+      },
+      async ({ from_id, rel, to_id }) => {
+        try {
+          const created = store.addLink(from_id, rel, to_id);
+          return jsonResult({ from_id, rel, to_id, created });
+        } catch (err) {
+          if (err instanceof LinkError) return errorResult(err.message);
+          throw err;
+        }
       },
     );
 

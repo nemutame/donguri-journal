@@ -52,4 +52,19 @@ describe("schema", () => {
     assert.equal(columns(db).filter((c) => c === "deleted_at").length, 1);
     db.close();
   });
+
+  it("createSchema adds entry_links to a pre-v3 database and is idempotent", () => {
+    const db = new Database(tmp.file("pre-v3.db"));
+    loadSqliteVec(db);
+    createSchema(db, 3);
+    db.exec("DROP TABLE entry_links"); // simulate a database created before v3
+    createSchema(db, 3);
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'entry_links'")
+      .all();
+    assert.equal(tables.length, 1);
+    // Running again must not throw.
+    createSchema(db, 3);
+    db.close();
+  });
 });

@@ -167,6 +167,10 @@ stable is what makes extension safe and is the basis of the "extensible" promise
 `WHERE embedding MATCH ? AND k = ? ORDER BY distance`. The rowid must be bound as
 a BigInt or sqlite-vec rejects it.
 
+**`entry_links`** — typed relations between entries (`from_id`, `rel`, `to_id`,
+`created_at`), always pointing new → old and append-only; hard-deleting an
+entry purges its links in both directions. See §6.
+
 **`embedding_meta`** — single row (`model_id`, `dim`) to detect a backend change.
 **`schema_meta`** — schema version.
 
@@ -183,7 +187,7 @@ VACUUMs so bytes do not linger.
 
 ---
 
-## 6. Lenses: a view-neutral core (planned)
+## 6. Lenses: a view-neutral core
 
 Journal data outlives any single way of looking at it. donguri therefore never
 burns a presentation format into stored data: the core records **universal
@@ -206,7 +210,7 @@ free-form):
 | `delegated_to` | string | who it was handed off to |
 | `granularity` | `day` (default) / `month` | how precisely `occurred_at` places the entry in time |
 
-**Relations are first-class.** A planned `entry_links` table
+**Relations are first-class.** The `entry_links` table
 (`from_id, rel, to_id, created_at`) records typed links between entries, always
 pointing **new → old**, so relating entries never mutates the past. Initial
 `rel` vocabulary: `continues` (this entry carries over / rewrites an earlier
@@ -216,7 +220,7 @@ one) and `references` (general association).
 are immutable. `meta` is a mutable *annotation* (a status change touches
 nothing else — no reindex). Relations are append-only.
 
-### Worked example: the BuJo lens
+### Worked example: the BuJo lens (planned)
 
 The first planned lens renders Bullet Journal daily / monthly / future logs
 through read-only tools (`bujo_day`, `bujo_month`, `bujo_future`,
@@ -263,7 +267,7 @@ Current (✅) and planned (🔜):
 | `list_installed_plugins` | Installed plugins + capabilities | ✅ |
 | `install_plugin` / `uninstall_plugin` | Local install (propose+confirm, loads live) / uninstall | ✅ |
 | `list_available_plugins` / `setup_plugin` / `enable_plugin` / `disable_plugin` | Registry discovery + richer lifecycle | 🔜 |
-| `update_entry_status` / `link_entries` | View-neutral writes: annotation updates + typed entry links (§6) | 🔜 |
+| `update_entry_status` / `link_entries` | View-neutral writes: annotation updates + typed entry links (§6) | ✅ |
 | `bujo_day` / `bujo_month` / `bujo_future` / `bujo_reconcile` | BuJo lens: daily / monthly / future logs + migration review (read-only projections, §6) | 🔜 |
 
 Export is intentionally **not** a data-returning tool — see §8.

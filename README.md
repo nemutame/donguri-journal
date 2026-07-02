@@ -169,6 +169,8 @@ each).
 | Tool | Purpose |
 | --- | --- |
 | `capture` | Stash a memory now. Low-friction; for media, the LLM passes extracted text plus the raw original bytes (`original_data`), which the server stores verbatim. Auto-deduplicated. |
+| `update_entry_status` | Update an entry's view-neutral annotations — mark an action `done` / `dropped` / reopened, set `due` / `priority` / `delegated_to`. Only `meta` changes; text and timestamps are immutable. |
+| `link_entries` | Add a typed relation between two entries, always newer → older: `continues` (carry-over / rewrite of an unfinished action) or `references` (general association). Idempotent. |
 | `query_entries` | **Structured** lookup by date range / tag / source kind. For precise, filterable questions and reviews. |
 | `recall_related` | **Semantic** vector search — find past entries related in meaning, even with different wording. |
 | `generate_review` | Reflective review of a day / week / month (or custom range). Returns a **PNG activity chart** + structured aggregates (totals, busiest day, source kinds, top tags) + presentation hints. |
