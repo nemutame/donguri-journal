@@ -22,6 +22,8 @@ describe("playbookPayload", () => {
   it("is empty for a feature without a playbook", () => {
     assert.deepEqual(playbookPayload({}), {});
     assert.deepEqual(playbookPayload({ playbook: undefined }), {});
+    // An empty playbook is no playbook — same predicate as has_playbook.
+    assert.deepEqual(playbookPayload({ playbook: "" }), {});
   });
 
   it("carries the playbook plus the install hint", () => {

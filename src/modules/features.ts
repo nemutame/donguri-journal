@@ -125,7 +125,8 @@ export const featuresModule: JournalModule = {
           title: f.title,
           description: f.description,
           enabled: active.has(id),
-          has_playbook: f.playbook !== undefined,
+          // Same predicate as playbookPayload: an empty playbook is no playbook.
+          has_playbook: Boolean(f.playbook),
         }));
         return jsonResult({ count: features.length, features });
       },
