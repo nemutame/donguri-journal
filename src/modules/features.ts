@@ -17,10 +17,39 @@ import { loadPluginConfig, savePluginConfig } from "../kernel/plugin.js";
 import { errorResult, jsonResult } from "../kernel/result.js";
 import { registerBujoTools } from "./bujo.js";
 
-interface BuiltinFeature {
+export interface BuiltinFeature {
   title: string;
   description: string;
+  /**
+   * Agent-facing markdown playbook: the multi-step workflow the feature's
+   * tools are primitives FOR (e.g. the BuJo morning ritual). Tool descriptions
+   * can't carry a workflow — they are size-constrained and always in context —
+   * so the playbook rides along in the enable_feature result instead, with a
+   * hint to install it into the client's own skill mechanism.
+   */
+  playbook?: string;
   register: (ctx: JournalContext) => RegisteredTool[];
+}
+
+/**
+ * How the agent should handle a playbook it just received. Mirrors the
+ * client-scope rule from docs/SETUP.md: only your own client's files, and the
+ * server stays the single source of truth (re-fetch instead of hand-editing).
+ */
+export const PLAYBOOK_INSTALL_HINT =
+  "This playbook is how the feature is meant to be driven. Follow it now, and offer to " +
+  "save it into the user's agent-instructions mechanism (a skill, a rules file, " +
+  "AGENTS.md / CLAUDE.md — whatever YOUR client uses) so future sessions follow it " +
+  "without re-fetching. Touch only your own client's files; if unsure which client that " +
+  "is, ask. The server copy is canonical — re-run enable_feature anytime to re-read it.";
+
+/** The playbook fields of an enable_feature result — empty when there is none. */
+export function playbookPayload(feature: Pick<BuiltinFeature, "playbook">): {
+  playbook?: string;
+  playbook_hint?: string;
+} {
+  if (!feature.playbook) return {};
+  return { playbook: feature.playbook, playbook_hint: PLAYBOOK_INSTALL_HINT };
 }
 
 const BUILTIN_FEATURES: Record<string, BuiltinFeature> = {
@@ -96,6 +125,7 @@ export const featuresModule: JournalModule = {
           title: f.title,
           description: f.description,
           enabled: active.has(id),
+          has_playbook: f.playbook !== undefined,
         }));
         return jsonResult({ count: features.length, features });
       },
@@ -108,7 +138,9 @@ export const featuresModule: JournalModule = {
         description:
           "Turn on a built-in opt-in feature by id (see list_features). Its tools register " +
           "immediately — no restart — and the choice persists across sessions. First-party " +
-          "code only; this is not plugin installation.",
+          "code only; this is not plugin installation. If the feature ships a playbook " +
+          "(agent workflow guide), the result includes it — calling this again on an " +
+          "already-enabled feature is harmless and simply re-reads the playbook.",
         inputSchema: {
           id: z.string().min(1).describe("The feature id, e.g. 'bujo'."),
         },
@@ -137,6 +169,7 @@ export const featuresModule: JournalModule = {
           enabled: id,
           already_enabled: alreadyLive,
           message: `${feature.title} is active — its tools are available now.`,
+          ...playbookPayload(feature),
         });
       },
     );
