@@ -262,7 +262,49 @@ describe("bujo projections", () => {
       ["old open action", "carried action, take two"],
       "oldest first; carried/done/future/non-action excluded, successor included",
     );
-    assert.equal(open[0]?.age_days, 3);
+    // Local calendar-day difference: logged on 06-28, reviewed on 07-02.
+    assert.equal(open[0]?.age_days, 4);
+    store.close();
+  });
+
+  it("buildDayLog respects the tz offset across the UTC date boundary", async () => {
+    const store = freshStore(tmp);
+    // 16:00Z on 07-01 is already 01:00 on 07-02 in JST (+09:00).
+    await store.insert({
+      body: "late-night thought",
+      occurred_at: "2026-07-01T16:00:00Z",
+      meta: { nature: "note" },
+    });
+    const jstDay2 = items(buildDayLog(store, { date: "2026-07-02", tz_offset_minutes: JST }));
+    assert.deepEqual(
+      jstDay2.map((i) => i.body),
+      ["late-night thought"],
+    );
+    assert.equal(
+      items(buildDayLog(store, { date: "2026-07-01", tz_offset_minutes: JST })).length,
+      0,
+    );
+    // In UTC the same entry belongs to 07-01.
+    assert.equal(items(buildDayLog(store, { date: "2026-07-01" })).length, 1);
+    store.close();
+  });
+
+  it("buildMonthLog places a UTC month-boundary event in the local month", async () => {
+    const store = freshStore(tmp);
+    // 20:00Z on 06-30 is 05:00 on 07-01 in JST.
+    await store.insert({
+      body: "midnight launch",
+      occurred_at: "2026-06-30T20:00:00Z",
+      meta: { nature: "event" },
+    });
+    const { structured } = buildMonthLog(store, { month: "2026-07", tz_offset_minutes: JST });
+    const calendar = structured.calendar as Array<{ date: string; items: Items }>;
+    assert.deepEqual(
+      calendar.map((d) => [d.date, d.items.map((i) => i.body)]),
+      [["2026-07-01", ["midnight launch"]]],
+    );
+    const june = buildMonthLog(store, { month: "2026-06", tz_offset_minutes: JST });
+    assert.equal((june.structured.calendar as unknown[]).length, 0);
     store.close();
   });
 

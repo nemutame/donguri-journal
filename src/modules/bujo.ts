@@ -166,15 +166,17 @@ export function buildDayLog(
 ): { structured: Record<string, unknown>; presentation_hints: Record<string, unknown> } {
   const tz = args.tz_offset_minutes ?? 0;
   const { since, until } = dayWindowUtc(args.date, tz);
-  const items = store
-    .query({ since, until, time_field: "occurred_at", limit: 500 })
+  const raw = store.query({ since, until, time_field: "occurred_at", limit: 500 });
+  const truncated = store.countInWindow({ since, until, time_field: "occurred_at" }) > raw.length;
+  const items = raw
     .filter((e) => granularity(e) === "day")
     .map((e) => projectItem(store, e, tz))
     .sort(byOccurredAt);
   return {
-    structured: { date: args.date, count: items.length, items },
+    structured: { date: args.date, count: items.length, truncated, items },
     presentation_hints: {
       headline: `Daily log ${args.date}`,
+      ...(truncated ? { warning: "More entries exist than could be projected — say so." } : {}),
       notation: NOTATION_LEGEND,
       layout:
         "Render as a compact Bullet Journal daily log: one line per item in the given order, " +
@@ -191,6 +193,8 @@ export function buildMonthLog(
   const tz = args.tz_offset_minutes ?? 0;
   const { since, until } = monthWindowUtc(args.month, tz);
   const inMonth = store.query({ since, until, time_field: "occurred_at", limit: 500 });
+  const truncated =
+    store.countInWindow({ since, until, time_field: "occurred_at" }) > inMonth.length;
 
   const calendar: Array<{ date: string; items: BujoItem[] }> = [];
   const byDate = new Map<string, BujoItem[]>();
@@ -212,9 +216,10 @@ export function buildMonthLog(
     .sort(byOccurredAt);
 
   return {
-    structured: { month: args.month, calendar, tasks },
+    structured: { month: args.month, truncated, calendar, tasks },
     presentation_hints: {
       headline: `Monthly log ${args.month}`,
+      ...(truncated ? { warning: "More entries exist than could be projected — say so." } : {}),
       notation: NOTATION_LEGEND,
       layout:
         "Render as the BuJo monthly spread: a CALENDAR page (events by day, one line each) and " +
@@ -235,8 +240,11 @@ export function buildFutureLog(
   const since = new Date(Date.UTC(y, m - 1, 1) - tz * 60_000).toISOString();
   const until = new Date(Date.UTC(y, m - 1 + months, 1) - tz * 60_000 - 1).toISOString();
 
+  const inSpan = store.query({ since, until, time_field: "occurred_at", limit: 500 });
+  const truncated =
+    store.countInWindow({ since, until, time_field: "occurred_at" }) > inSpan.length;
   const byMonth = new Map<string, BujoItem[]>();
-  for (const entry of store.query({ since, until, time_field: "occurred_at", limit: 500 })) {
+  for (const entry of inSpan) {
     if (granularity(entry) !== "month") continue;
     const ym = localYm(entry.occurred_at, tz);
     const bucket = byMonth.get(ym) ?? [];
@@ -249,9 +257,10 @@ export function buildFutureLog(
   }));
 
   return {
-    structured: { from_month: fromYm, months, groups },
+    structured: { from_month: fromYm, months, truncated, groups },
     presentation_hints: {
       headline: `Future log from ${fromYm} (${months} months)`,
+      ...(truncated ? { warning: "More entries exist than could be projected — say so." } : {}),
       notation: NOTATION_LEGEND,
       layout: "Render as the BuJo future log: one short section per month, items one line each.",
       tone: "Terse, page-like.",
@@ -272,22 +281,33 @@ export function buildReconcile(
   const tz = args.tz_offset_minutes ?? 0;
   const beforeDate = args.before_date ?? localDate(new Date().toISOString(), tz);
   const before = dayWindowUtc(beforeDate, tz).since;
-  const beforeMs = Date.parse(before);
 
-  const open = store.openActions({ before, limit: args.limit }).map((entry) => {
+  // Fetch one extra row so truncation is honest, not silent (detectable while
+  // the requested limit stays below the store's own cap).
+  const limit = Math.min(Math.max(Math.trunc(args.limit ?? 100), 1), 499);
+  const fetched = store.openActions({ before, limit: limit + 1 });
+  const truncated = fetched.length > limit;
+
+  const open = fetched.slice(0, limit).map((entry) => {
     const item = projectItem(store, entry, tz);
+    const entryDate = localDate(entry.occurred_at, tz);
     return {
       ...item,
-      local_date: localDate(entry.occurred_at, tz),
+      local_date: entryDate,
       granularity: granularity(entry),
-      age_days: Math.max(0, Math.floor((beforeMs - Date.parse(entry.occurred_at)) / DAY_MS)),
+      // Local calendar-day difference: an action logged late yesterday is 1
+      // day old at this morning's review, not 0.
+      age_days: Math.max(0, Math.round((Date.parse(beforeDate) - Date.parse(entryDate)) / DAY_MS)),
     };
   });
 
   return {
-    structured: { before_date: beforeDate, count: open.length, open_actions: open },
+    structured: { before_date: beforeDate, count: open.length, truncated, open_actions: open },
     presentation_hints: {
       headline: `Migration review — ${open.length} open action(s) before ${beforeDate}`,
+      ...(truncated
+        ? { warning: "More open actions exist than were returned — reconcile in batches." }
+        : {}),
       ritual:
         "Walk the user through each open action ONE BY ONE and let THEM decide — never decide " +
         "for them: (a) already done → update_entry_status {status:'done'}; (b) not worth doing " +
@@ -407,7 +427,7 @@ export function registerBujoTools(ctx: JournalContext): RegisteredTool[] {
             .number()
             .int()
             .optional()
-            .describe("Max actions to return (1-500, default 100)."),
+            .describe("Max actions to return (1-499, default 100)."),
         },
       },
       async (args) => jsonResult(buildReconcile(store, args)),

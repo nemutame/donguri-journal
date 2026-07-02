@@ -36,6 +36,14 @@ const BUILTIN_FEATURES: Record<string, BuiltinFeature> = {
 /** Live tool handles per enabled feature (per-process; the server is per-process). */
 const active = new Map<string, RegisteredTool[]>();
 
+/**
+ * Own-property lookup only: a config key like "constructor" must not reach
+ * Object.prototype and come back truthy.
+ */
+function getFeature(id: string): BuiltinFeature | undefined {
+  return Object.hasOwn(BUILTIN_FEATURES, id) ? BUILTIN_FEATURES[id] : undefined;
+}
+
 /** Register every feature enabled in config. Never throws — the server must start. */
 export async function loadEnabledFeatures(ctx: JournalContext): Promise<void> {
   let features: Record<string, boolean>;
@@ -47,14 +55,20 @@ export async function loadEnabledFeatures(ctx: JournalContext): Promise<void> {
   }
   for (const [id, enabled] of Object.entries(features)) {
     if (!enabled) continue;
-    const feature = BUILTIN_FEATURES[id];
+    const feature = getFeature(id);
     if (!feature) {
       ctx.log(`ignoring unknown feature in config: ${id}`);
       continue;
     }
     if (!active.has(id)) {
-      active.set(id, feature.register(ctx));
-      ctx.log(`feature enabled: ${id}`);
+      try {
+        active.set(id, feature.register(ctx));
+        ctx.log(`feature enabled: ${id}`);
+      } catch (err) {
+        // A broken feature must not take the whole server down at startup.
+        active.delete(id);
+        ctx.log(`failed to enable feature ${id}:`, err);
+      }
     }
   }
 }
@@ -98,7 +112,7 @@ export const featuresModule: JournalModule = {
         },
       },
       async ({ id }) => {
-        const feature = BUILTIN_FEATURES[id];
+        const feature = getFeature(id);
         if (!feature) {
           return errorResult(
             `unknown feature '${id}' — available: ${Object.keys(BUILTIN_FEATURES).join(", ")}`,
@@ -138,7 +152,7 @@ export const featuresModule: JournalModule = {
         },
       },
       async ({ id }) => {
-        if (!BUILTIN_FEATURES[id]) {
+        if (!getFeature(id)) {
           return errorResult(
             `unknown feature '${id}' — available: ${Object.keys(BUILTIN_FEATURES).join(", ")}`,
           );
