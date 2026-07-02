@@ -4,6 +4,7 @@
  * token) that fetch would otherwise pin.
  */
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { type IncomingHttpHeaders, request } from "node:http";
 import { after, before, describe, it } from "node:test";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -349,6 +350,170 @@ describe("management UI writes + export", () => {
     assert.deepEqual(res.json(), { id: withOriginalId, mode: "hard", deleted: true });
     assert.equal(store.getEntry(withOriginalId, { include_deleted: true }), null);
     assert.equal(await originals.get(originalRef), null);
+  });
+
+  it("hides the BuJo projection while the lens is disabled", async () => {
+    // This suite never enables the feature, so the projection route is a 404.
+    const res = await httpGet(port, "/api/bujo/day?date=2026-07-02", {
+      "x-donguri-token": token,
+    });
+    assert.equal(res.status, 404);
+  });
+});
+
+describe("management UI bujo page API", () => {
+  let tmp: TempDir;
+  let ui: ManagementUi;
+  let token: string;
+  let port: number;
+  let store: JournalStore;
+  const DAY = "2026-07-02";
+
+  function httpPost(path: string, body?: unknown): Promise<Res> {
+    return new Promise((resolve, reject) => {
+      const req = request(
+        {
+          host: "127.0.0.1",
+          port,
+          path,
+          method: "POST",
+          headers: {
+            "x-donguri-token": token,
+            ...(body ? { "content-type": "application/json" } : {}),
+          },
+        },
+        (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (c) => {
+            text += c;
+          });
+          res.on("end", () =>
+            resolve({
+              status: res.statusCode ?? 0,
+              contentType: res.headers["content-type"] ?? "",
+              headers: res.headers,
+              body: text,
+              json: () => JSON.parse(text),
+            }),
+          );
+        },
+      );
+      req.on("error", reject);
+      req.end(body ? JSON.stringify(body) : undefined);
+    });
+  }
+
+  async function dayItems(date = DAY): Promise<Array<Record<string, unknown>>> {
+    const res = await httpGet(port, `/api/bujo/day?date=${date}`, { "x-donguri-token": token });
+    assert.equal(res.status, 200);
+    const log = res.json() as { structured: { items: Array<Record<string, unknown>> } };
+    return log.structured.items;
+  }
+
+  before(async () => {
+    tmp = makeTempDir();
+    const dbPath = tmp.file("journal.db");
+    store = new JournalStore(dbPath, new FakeEmbedder());
+    store.init();
+    const pluginsConfigPath = tmp.file("plugins.json");
+    writeFileSync(pluginsConfigPath, JSON.stringify({ plugins: [], features: { bujo: true } }));
+    const config: JournalConfig = {
+      dbPath,
+      originalsDir: tmp.file("originals"),
+      maxOriginalBytes: 25 * 1024 * 1024,
+      pluginsDir: tmp.file("plugins"),
+      pluginsConfigPath,
+      uiHost: "127.0.0.1",
+      uiPort: 0,
+    };
+    const ctx: JournalContext = {
+      server: undefined as unknown as McpServer,
+      store,
+      originals: new LocalDirStore(tmp.file("originals")),
+      config,
+      log: () => {},
+      storage: (id) => store.moduleStorage(id),
+      onEntryPurged: (hook) => store.onEntryPurged(hook),
+    };
+    ui = await startManagementUi(ctx);
+    token = ui.token;
+    port = ui.port;
+  });
+
+  after(async () => {
+    await ui.close();
+    tmp.cleanup();
+  });
+
+  it("quick capture lands on the requested local day with its nature", async () => {
+    const res = await httpPost("/api/capture", { body: "ui probe task", date: DAY });
+    assert.equal(res.status, 200);
+    const items = await dayItems();
+    const item = items.find((i) => i.body === "ui probe task");
+    assert.ok(item, "captured item appears in the day view");
+    assert.equal(item.glyph, "•");
+  });
+
+  it("status route flips done/dropped and back to open", async () => {
+    const created = await httpPost("/api/capture", { body: "flip me", date: DAY });
+    const id = (created.json() as { id: number }).id;
+
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=done`)).status, 200);
+    let item = (await dayItems()).find((i) => i.id === id);
+    assert.equal(item?.glyph, "x");
+
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=open`)).status, 200);
+    item = (await dayItems()).find((i) => i.id === id);
+    assert.equal(item?.glyph, "•");
+
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=dropped`)).status, 200);
+    item = (await dayItems()).find((i) => i.id === id);
+    assert.equal(item?.glyph, "~");
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=open`)).status, 200);
+
+    const bad = await httpPost(`/api/entries/${id}/status?status=someday`);
+    assert.equal(bad.status, 400);
+    const missing = await httpPost("/api/entries/999999/status?status=done");
+    assert.equal(missing.status, 404);
+  });
+
+  it("carry to a day appends a linked successor and derives '>' on the source", async () => {
+    const created = await httpPost("/api/capture", { body: "carry me", date: DAY });
+    const id = (created.json() as { id: number }).id;
+    const tomorrow = "2026-07-03";
+
+    const res = await httpPost(`/api/entries/${id}/carry`, { to: tomorrow });
+    assert.equal(res.status, 200);
+    const out = res.json() as { new_id: number; deduped: boolean };
+    assert.equal(out.deduped, false);
+
+    const source = (await dayItems()).find((i) => i.id === id);
+    assert.equal(source?.glyph, ">");
+    assert.deepEqual((source?.moved_to as { id: number }).id, out.new_id);
+    const target = (await dayItems(tomorrow)).find((i) => i.id === out.new_id);
+    assert.equal(target?.glyph, "•");
+    assert.equal(target?.carry_count, 1);
+  });
+
+  it("carry to a future month derives '<' (scheduled) on the source", async () => {
+    const created = await httpPost("/api/capture", { body: "park me", date: DAY });
+    const id = (created.json() as { id: number }).id;
+    const res = await httpPost(`/api/entries/${id}/carry`, { to: "2026-09" });
+    assert.equal(res.status, 200);
+    const source = (await dayItems()).find((i) => i.id === id);
+    assert.equal(source?.glyph, "<");
+  });
+
+  it("carry validates its target and body", async () => {
+    const created = await httpPost("/api/capture", { body: "strict", date: DAY });
+    const id = (created.json() as { id: number }).id;
+    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "someday" })).status, 400);
+    // Digit-shaped but calendar-invalid targets must not roll over via Date.UTC.
+    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-02-30" })).status, 400);
+    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-13" })).status, 400);
+    assert.equal((await httpPost(`/api/entries/${id}/carry`)).status, 400);
+    assert.equal((await httpPost("/api/entries/999999/carry", { to: "2026-07-03" })).status, 404);
   });
 });
 

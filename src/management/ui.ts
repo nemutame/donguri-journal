@@ -52,15 +52,52 @@ export function renderApp(): string {
     background: transparent; color: inherit; cursor: pointer; text-decoration: none;
   }
   .actions .danger { color: #c0392b; border-color: #c0392b66; }
+  nav#tabs { margin-left: auto; display: flex; gap: 6px; }
+  nav#tabs button {
+    font: inherit; font-size: 12px; padding: 4px 12px; border: 1px solid #8886;
+    border-radius: 999px; background: transparent; color: inherit; cursor: pointer;
+  }
+  nav#tabs button.active { background: #8882; }
+  .page[hidden] { display: none; }
+  .bj-item { display: flex; align-items: baseline; gap: 8px; padding: 5px 2px; border-bottom: 1px dotted #8883; }
+  .bj-item .glyph { width: 1.2em; text-align: center; font-weight: 600; flex: none; }
+  .bj-item .body { flex: 1; word-break: break-word; }
+  .bj-item.dropped .body { text-decoration: line-through; opacity: 0.6; }
+  .bj-item.closed .body { opacity: 0.6; }
+  .bj-item .note { font-size: 11px; opacity: 0.6; flex: none; }
+  .bj-item .actions { margin-top: 0; flex: none; }
 </style>
 </head>
 <body>
 <header>
   <h1>🐿️ donguri-journal</h1>
   <span class="sub">management console</span>
+  <nav id="tabs">
+    <button data-page="entries" class="active">Entries</button>
+    <button data-page="bujo" hidden>BuJo</button>
+  </nav>
 </header>
 <main>
-  <section>
+  <section class="page" id="page-bujo" hidden>
+    <form class="controls" id="bj-controls">
+      <button type="button" id="bj-prev" title="previous day">←</button>
+      <input type="date" id="bj-date" />
+      <button type="button" id="bj-next" title="next day">→</button>
+      <button type="button" id="bj-today">Today</button>
+    </form>
+    <div class="status muted" id="bj-status"></div>
+    <div id="bj-list"></div>
+    <form class="controls" id="bj-add">
+      <select id="bj-nature" title="kind">
+        <option value="action">• action</option>
+        <option value="event">○ event</option>
+        <option value="note">– note</option>
+      </select>
+      <input type="text" id="bj-body" placeholder="Add to this day…" style="flex:1 1 220px" />
+      <button type="submit">Add</button>
+    </form>
+  </section>
+  <section class="page" id="page-entries">
     <form class="controls" id="controls">
       <input type="search" id="q" placeholder="Semantic recall (leave blank to browse)…" />
       <input type="text" id="tag" placeholder="tag" size="8" />
@@ -92,6 +129,18 @@ export function renderApp(): string {
       if (v !== "" && v != null && v !== false) url.searchParams.set(k, v);
     }
     const res = await fetch(url, { headers: { "x-donguri-token": TOKEN } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  async function post(path, body) {
+    const res = await fetch(new URL(path, location.origin), {
+      method: "POST",
+      headers: body
+        ? { "x-donguri-token": TOKEN, "content-type": "application/json" }
+        : { "x-donguri-token": TOKEN },
+      body: body ? JSON.stringify(body) : undefined,
+    });
     if (!res.ok) throw new Error("HTTP " + res.status);
     return res.json();
   }
@@ -200,6 +249,138 @@ export function renderApp(): string {
       $("status").textContent = "Delete failed: " + err.message;
     }
   });
+
+  // ---- BuJo page (shown only when the lens feature is enabled) ----
+
+  // Offset for a SPECIFIC local day (not "now"): across a DST change, today's
+  // offset applied to another date would shift entries near midnight into the
+  // wrong day. Noon keeps the probe clear of the transition itself.
+  const tzFor = (date) => -new Date(date + "T12:00:00").getTimezoneOffset();
+  const localToday = () => {
+    const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 10);
+  };
+  const shiftDay = (date, days) => {
+    const d = new Date(date + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  function renderBujo(log) {
+    const items = log.structured.items || [];
+    const list = $("bj-list");
+    $("bj-status").textContent = log.structured.count + " item(s)" +
+      (log.structured.truncated ? " (truncated)" : "");
+    if (items.length === 0) {
+      list.innerHTML = '<p class="muted">nothing logged yet</p>';
+      return;
+    }
+    list.innerHTML = items.map((it) => {
+      const cls = it.status === "dropped" ? " dropped" :
+        (it.status === "done" || it.glyph === ">" || it.glyph === "<") ? " closed" : "";
+      const notes = [];
+      if (it.priority) notes.push("*");
+      if (it.due) notes.push("due " + it.due);
+      if (it.delegated_to) notes.push("→ @" + it.delegated_to);
+      if (it.carry_count > 0) notes.push("carried " + it.carry_count + "x");
+      if (it.moved_to) notes.push("moved → #" + it.moved_to.id);
+      const canAct = it.kind === "task";
+      const open = it.status === "open" && it.glyph === "•";
+      const buttons = !canAct ? "" :
+        '<span class="actions">' +
+        (open ? '<button type="button" data-act="done" data-id="' + it.id + '">x done</button>' +
+                '<button type="button" data-act="dropped" data-id="' + it.id + '">~ drop</button>' +
+                '<button type="button" data-act="carry" data-id="' + it.id + '">&gt; carry</button>'
+              : (it.status === "done" || it.status === "dropped"
+                  ? '<button type="button" data-act="open" data-id="' + it.id + '">reopen</button>' : "")) +
+        "</span>";
+      return '<div class="bj-item' + cls + '">' +
+        '<span class="glyph">' + esc(String(it.glyph)) + "</span>" +
+        '<span class="body">' + esc(String(it.body)) + "</span>" +
+        (notes.length ? '<span class="note">' + esc(notes.join(" · ")) + "</span>" : "") +
+        buttons + "</div>";
+    }).join("");
+  }
+
+  async function loadBujo() {
+    try {
+      const date = $("bj-date").value;
+      const log = await api("/api/bujo/day", { date, tz_offset_minutes: tzFor(date) });
+      renderBujo(log);
+    } catch (err) {
+      $("bj-status").textContent = "Error: " + err.message;
+    }
+  }
+
+  async function probeBujo() {
+    try {
+      const today = localToday();
+      await api("/api/bujo/day", { date: today, tz_offset_minutes: tzFor(today) });
+      document.querySelector('#tabs button[data-page="bujo"]').hidden = false;
+    } catch { /* lens disabled — tab stays hidden */ }
+  }
+
+  document.getElementById("tabs").addEventListener("click", (ev) => {
+    const btn = ev.target instanceof Element ? ev.target.closest("button[data-page]") : null;
+    if (!btn) return;
+    for (const b of document.querySelectorAll("#tabs button")) b.classList.toggle("active", b === btn);
+    $("page-entries").hidden = btn.dataset.page !== "entries";
+    $("page-bujo").hidden = btn.dataset.page !== "bujo";
+    if (btn.dataset.page === "bujo") loadBujo();
+  });
+
+  $("bj-prev").addEventListener("click", () => { $("bj-date").value = shiftDay($("bj-date").value, -1); loadBujo(); });
+  $("bj-next").addEventListener("click", () => { $("bj-date").value = shiftDay($("bj-date").value, 1); loadBujo(); });
+  $("bj-today").addEventListener("click", () => { $("bj-date").value = localToday(); loadBujo(); });
+  $("bj-date").addEventListener("change", loadBujo);
+
+  $("bj-add").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const body = $("bj-body").value.trim();
+    if (!body) return;
+    try {
+      const date = $("bj-date").value;
+      await post("/api/capture", {
+        body, date, nature: $("bj-nature").value, tz_offset_minutes: tzFor(date),
+      });
+      $("bj-body").value = "";
+      loadBujo();
+    } catch (err) {
+      $("bj-status").textContent = "Add failed: " + err.message;
+    }
+  });
+
+  $("bj-list").addEventListener("click", async (ev) => {
+    const btn = ev.target instanceof Element ? ev.target.closest("button[data-act]") : null;
+    if (!btn) return;
+    const id = btn.getAttribute("data-id");
+    const act = btn.getAttribute("data-act");
+    try {
+      if (act === "carry") {
+        const to = prompt(
+          "Carry #" + id + " to which day (YYYY-MM-DD) or month (YYYY-MM)?",
+          shiftDay($("bj-date").value, 1),
+        );
+        if (!to) return;
+        if (!/^\\d{4}-\\d{2}(-\\d{2})?$/.test(to.trim())) {
+          $("bj-status").textContent = "Carry failed: use YYYY-MM-DD or YYYY-MM";
+          return;
+        }
+        const target = to.trim();
+        // Offset for the TARGET day (first of the month for a month target).
+        const tzTarget = tzFor(target.length === 7 ? target + "-01" : target);
+        await post("/api/entries/" + id + "/carry", { to: target, tz_offset_minutes: tzTarget });
+      } else {
+        await post("/api/entries/" + id + "/status?status=" + act);
+      }
+      loadBujo();
+    } catch (err) {
+      $("bj-status").textContent = "Action failed: " + err.message;
+    }
+  });
+
+  $("bj-date").value = localToday();
+  probeBujo();
 
   refreshStats();
   search();
