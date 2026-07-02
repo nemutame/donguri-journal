@@ -30,8 +30,8 @@ lost. Journal first, document second.
 
 ## The morning ritual (daily)
 
-1. \`bujo_reconcile\` for today (pass the user's \`tz_offset_minutes\`) → every open
-   action nothing has carried over yet.
+1. \`bujo_reconcile\` for today (pass the user's \`tz_offset_minutes\`) → lists every
+   open action from before today that has not been carried over yet.
 2. Walk them ONE BY ONE; the user decides, never you:
    - already done → \`update_entry_status {status:'done'}\`
    - not worth doing anymore → \`update_entry_status {status:'dropped'}\`
