@@ -14,6 +14,7 @@ import { LinkError } from "../db/store.js";
 import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
 import { errorResult, jsonResult } from "../kernel/result.js";
+import { SERVER_VERSION } from "../kernel/version.js";
 import { surfacePatterns } from "../review/patterns.js";
 import { generateReview } from "../review/review.js";
 
@@ -557,8 +558,10 @@ export const coreModule: JournalModule = {
         title: "Storage statistics",
         description:
           "Report how big the journal is: entry counts (active vs soft-deleted), vector count, " +
-          "breakdown by source kind and by month, the originals count + total bytes, and the database " +
-          "file size. Use this for capacity questions like 'how much have I stored?'.",
+          "breakdown by source kind and by month, the originals count + total bytes, the database " +
+          "file size, and the running server version. Use this for capacity questions like 'how " +
+          "much have I stored?' and to check which version is running (compare with the published " +
+          "npm version when the user asks about updates).",
         inputSchema: {},
       },
       async () => {
@@ -572,7 +575,12 @@ export const coreModule: JournalModule = {
         } catch {
           dbBytes = null;
         }
-        return jsonResult({ entries, originals: originalsStats, db_bytes: dbBytes });
+        return jsonResult({
+          version: SERVER_VERSION,
+          entries,
+          originals: originalsStats,
+          db_bytes: dbBytes,
+        });
       },
     );
   },

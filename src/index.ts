@@ -22,6 +22,7 @@ import { loadConfig } from "./kernel/config.js";
 import { createContext } from "./kernel/context.js";
 import { type JournalModule, registerModules } from "./kernel/module.js";
 import { loadInstalledPlugins } from "./kernel/plugin.js";
+import { SERVER_VERSION } from "./kernel/version.js";
 import { managementModule } from "./management/module.js";
 import { coreModule } from "./modules/core.js";
 import { featuresModule, loadEnabledFeatures } from "./modules/features.js";
@@ -35,7 +36,7 @@ const store = new JournalStore(config.dbPath, createEmbeddingProvider());
 store.init();
 const originals = createOriginalStore(config.originalsDir);
 
-const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
+const server = new McpServer({ name: "donguri-journal", version: SERVER_VERSION });
 const ctx = createContext({ server, store, originals, config });
 
 // Built-in modules. Installed plugins and opt-in features load separately (below).
