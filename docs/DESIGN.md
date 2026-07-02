@@ -200,7 +200,7 @@ free-form):
 | Key | Values | Meaning |
 | --- | --- | --- |
 | `nature` | `action` / `event` / `note` | what the content *is* (`source_kind` is the medium) |
-| `status` | `open` / `done` / `dropped` | an action's lifecycle (terminal states only) |
+| `status` | `open` / `done` / `dropped` | an action's lifecycle (`done` / `dropped` are terminal) |
 | `priority` | `true` | importance marker |
 | `due` | ISO date | deadline |
 | `delegated_to` | string | who it was handed off to |
@@ -236,8 +236,8 @@ through read-only tools (`bujo_day`, `bujo_month`, `bujo_future`,
 Carrying a task over is BuJo's deliberate morning ritual, and it maps onto a
 **pure append**: `bujo_reconcile` surfaces yesterday's undecided open actions,
 and the user settles each one in conversation — done, dropped, or carried into
-today as a **new entry** (whose body may be rewritten; that friction is the
-point) linked `continues → old`. The old entry needs no update: the incoming
+today as a **new entry**, rephrasing its text at creation if useful (that
+friction is the point) and linking it `continues → old`. The old entry needs no update: the incoming
 link is what renders it as `>`. The chain of `continues` links across days and
 months *is* the migration history — "carried over three times; is this still
 worth doing?" becomes a queryable fact.
