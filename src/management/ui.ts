@@ -252,9 +252,12 @@ export function renderApp(): string {
 
   // ---- BuJo page (shown only when the lens feature is enabled) ----
 
-  const TZ = -new Date().getTimezoneOffset();
+  // Offset for a SPECIFIC local day (not "now"): across a DST change, today's
+  // offset applied to another date would shift entries near midnight into the
+  // wrong day. Noon keeps the probe clear of the transition itself.
+  const tzFor = (date) => -new Date(date + "T12:00:00").getTimezoneOffset();
   const localToday = () => {
-    const d = new Date(Date.now() + TZ * 60000);
+    const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
     return d.toISOString().slice(0, 10);
   };
   const shiftDay = (date, days) => {
@@ -301,7 +304,8 @@ export function renderApp(): string {
 
   async function loadBujo() {
     try {
-      const log = await api("/api/bujo/day", { date: $("bj-date").value, tz_offset_minutes: TZ });
+      const date = $("bj-date").value;
+      const log = await api("/api/bujo/day", { date, tz_offset_minutes: tzFor(date) });
       renderBujo(log);
     } catch (err) {
       $("bj-status").textContent = "Error: " + err.message;
@@ -310,7 +314,8 @@ export function renderApp(): string {
 
   async function probeBujo() {
     try {
-      await api("/api/bujo/day", { date: localToday(), tz_offset_minutes: TZ });
+      const today = localToday();
+      await api("/api/bujo/day", { date: today, tz_offset_minutes: tzFor(today) });
       document.querySelector('#tabs button[data-page="bujo"]').hidden = false;
     } catch { /* lens disabled — tab stays hidden */ }
   }
@@ -334,8 +339,9 @@ export function renderApp(): string {
     const body = $("bj-body").value.trim();
     if (!body) return;
     try {
+      const date = $("bj-date").value;
       await post("/api/capture", {
-        body, date: $("bj-date").value, nature: $("bj-nature").value, tz_offset_minutes: TZ,
+        body, date, nature: $("bj-nature").value, tz_offset_minutes: tzFor(date),
       });
       $("bj-body").value = "";
       loadBujo();
@@ -360,7 +366,10 @@ export function renderApp(): string {
           $("bj-status").textContent = "Carry failed: use YYYY-MM-DD or YYYY-MM";
           return;
         }
-        await post("/api/entries/" + id + "/carry", { to: to.trim(), tz_offset_minutes: TZ });
+        const target = to.trim();
+        // Offset for the TARGET day (first of the month for a month target).
+        const tzTarget = tzFor(target.length === 7 ? target + "-01" : target);
+        await post("/api/entries/" + id + "/carry", { to: target, tz_offset_minutes: tzTarget });
       } else {
         await post("/api/entries/" + id + "/status?status=" + act);
       }

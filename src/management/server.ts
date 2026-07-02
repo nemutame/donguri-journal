@@ -13,10 +13,11 @@
  *    compared in constant time.
  *  - The Host header is pinned to a loopback name, so a remote page cannot use
  *    DNS rebinding to reach the API through the victim's browser.
- *  - Mutations are POST-only and limited to entry deletion (the owner deleting
- *    their own data). Export/download endpoints stream raw journal data to the
- *    owner's browser — deliberately NOT through the LLM. Entry data never
- *    includes filesystem paths.
+ *  - Mutations are POST-only and mirror existing MCP tool operations: entry
+ *    deletion, status annotations, carry-over (capture + continues link) and
+ *    quick capture — all through the store's public API. Export/download
+ *    endpoints stream raw journal data to the owner's browser — deliberately
+ *    NOT through the LLM. Entry data never includes filesystem paths.
  */
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { statSync } from "node:fs";
@@ -64,9 +65,15 @@ const bujoDayQuerySchema = z.object({
   tz_offset_minutes: tzSchema,
 });
 
-/** Carry an open action to a later day (YYYY-MM-DD) or month (YYYY-MM). */
+/**
+ * Carry an open action to a later day (YYYY-MM-DD) or month (YYYY-MM).
+ * Both alternatives are calendar-validated so `2026-13` or `2026-02-30` never
+ * reach Date.UTC (which would silently roll them into a different date).
+ */
 const carryBodySchema = z.object({
-  to: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/, "to must be YYYY-MM-DD or YYYY-MM"),
+  to: z.union([z.string().date(), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)], {
+    errorMap: () => ({ message: "to must be a valid YYYY-MM-DD day or YYYY-MM month" }),
+  }),
   tz_offset_minutes: tzSchema,
   body: z.string().min(1).optional(),
 });
@@ -163,7 +170,10 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
   const bujoEnabled = async (): Promise<boolean> => {
     try {
       return (await loadPluginConfig(config.pluginsConfigPath)).features.bujo === true;
-    } catch {
+    } catch (err) {
+      // A corrupt config is not the same as "feature off" — surface it on
+      // stderr instead of silently 404ing forever.
+      ctx.log("plugin config unreadable; treating BuJo page as disabled:", err);
       return false;
     }
   };

@@ -467,6 +467,11 @@ describe("management UI bujo page API", () => {
     item = (await dayItems()).find((i) => i.id === id);
     assert.equal(item?.glyph, "•");
 
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=dropped`)).status, 200);
+    item = (await dayItems()).find((i) => i.id === id);
+    assert.equal(item?.glyph, "~");
+    assert.equal((await httpPost(`/api/entries/${id}/status?status=open`)).status, 200);
+
     const bad = await httpPost(`/api/entries/${id}/status?status=someday`);
     assert.equal(bad.status, 400);
     const missing = await httpPost("/api/entries/999999/status?status=done");
@@ -504,6 +509,9 @@ describe("management UI bujo page API", () => {
     const created = await httpPost("/api/capture", { body: "strict", date: DAY });
     const id = (created.json() as { id: number }).id;
     assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "someday" })).status, 400);
+    // Digit-shaped but calendar-invalid targets must not roll over via Date.UTC.
+    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-02-30" })).status, 400);
+    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-13" })).status, 400);
     assert.equal((await httpPost(`/api/entries/${id}/carry`)).status, 400);
     assert.equal((await httpPost("/api/entries/999999/carry", { to: "2026-07-03" })).status, 404);
   });
