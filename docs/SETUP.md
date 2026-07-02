@@ -127,4 +127,5 @@ consent** (a global install changes system state), and **fail silently offline**
   macOS: `~/Library/Logs/Claude/mcp-server-donguri-journal.log`
 - Claude Code — `claude mcp list`, and the client's MCP logs
 
-Still stuck? Open an issue: <https://github.com/nemutame/donguri-journal/issues>.
+Still stuck? Please feel free to open an issue — we're happy to help:
+<https://github.com/nemutame/donguri-journal/issues>.

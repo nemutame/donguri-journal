@@ -210,8 +210,9 @@ Two layers, so the index is always rebuildable and originals are never lost:
 
 ## Contributing
 
-Contributions are welcome — **issues and PRs in Japanese are fine too**. See
-[docs/DESIGN.md](docs/DESIGN.md) for the design intent before proposing larger changes.
+Contributions are always welcome — **issues and PRs in Japanese are welcome too**.
+Before proposing larger changes, we'd appreciate it if you had a look at the design
+intent in [docs/DESIGN.md](docs/DESIGN.md).
 
 ```bash
 npm run lint        # Biome (lint + format check)
