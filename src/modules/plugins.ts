@@ -142,6 +142,7 @@ export const pluginsModule: JournalModule = {
           await mkdir(config.pluginsDir, { recursive: true });
           await cp(source, dest, { recursive: true });
           const next: PluginConfig = {
+            ...cfgBefore,
             plugins: [
               ...cfgBefore.plugins.filter((p) => p.id !== manifest.id),
               { id: manifest.id, enabled: true },
@@ -196,6 +197,7 @@ export const pluginsModule: JournalModule = {
           // leave an unlisted-but-present directory that blocks reinstall.
           await rm(pluginDir(ctx, id), { recursive: true, force: true });
           await savePluginConfig(config.pluginsConfigPath, {
+            ...cfg,
             plugins: cfg.plugins.filter((p) => p.id !== id),
           });
         } catch (err) {

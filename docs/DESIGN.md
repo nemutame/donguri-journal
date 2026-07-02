@@ -220,11 +220,15 @@ one) and `references` (general association).
 are immutable. `meta` is a mutable *annotation* (a status change touches
 nothing else — no reindex). Relations are append-only.
 
-### Worked example: the BuJo lens (planned)
+### Worked example: the BuJo lens
 
-The first planned lens renders Bullet Journal daily / monthly / future logs
-through read-only tools (`bujo_day`, `bujo_month`, `bujo_future`,
-`bujo_reconcile`). No BuJo marker exists in the data — every glyph is derived:
+The first lens renders Bullet Journal daily / monthly / future logs through
+read-only tools (`bujo_day`, `bujo_month`, `bujo_future`, `bujo_reconcile`).
+It is opt-in via the built-in **feature toggle** (`enable_feature` /
+`disable_feature` — first-party code, so no install ceremony): enabling
+registers its tools live, disabling removes them live, and the journal data is
+untouched either way. No BuJo marker exists in the data — every glyph is
+derived:
 
 | Generic data | BuJo rendering |
 | --- | --- |
@@ -268,7 +272,8 @@ Current (✅) and planned (🔜):
 | `install_plugin` / `uninstall_plugin` | Local install (propose+confirm, loads live) / uninstall | ✅ |
 | `list_available_plugins` / `setup_plugin` / `enable_plugin` / `disable_plugin` | Registry discovery + richer lifecycle | 🔜 |
 | `update_entry_status` / `link_entries` | View-neutral writes: annotation updates + typed entry links (§6) | ✅ |
-| `bujo_day` / `bujo_month` / `bujo_future` / `bujo_reconcile` | BuJo lens: daily / monthly / future logs + migration review (read-only projections, §6) | 🔜 |
+| `bujo_day` / `bujo_month` / `bujo_future` / `bujo_reconcile` | BuJo lens: daily / monthly / future logs + migration review (read-only projections, §6) | ✅ |
+| `list_features` / `enable_feature` / `disable_feature` | Built-in opt-in features (e.g. lenses): list + toggle live, persisted | ✅ |
 
 Export is intentionally **not** a data-returning tool — see §8.
 
@@ -402,8 +407,8 @@ hardening.
   (`tools/list_changed`) ✅; hosted registry and capability/isolation hardening
   are next (see §10). 🔜
 - **Lens layer** — view-neutral annotation vocabulary + `entry_links` in the
-  core, then the BuJo lens (daily / monthly / future logs + the migration
-  ritual) as the first read-only projection (§6). 🔜
+  core ✅, and the BuJo lens (daily / monthly / future logs + the migration
+  ritual) as the first read-only projection, opt-in via feature toggles (§6). ✅
 - **Phase 2 — local-first sync** (separate, hard): CRDT (Automerge/Yjs) +
   pluggable transport (P2P via libp2p / relay / cloud storage), with end-to-end
   encryption built in from the start. **No blockchain** (wrong trust model:

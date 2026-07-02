@@ -24,6 +24,7 @@ import { type JournalModule, registerModules } from "./kernel/module.js";
 import { loadInstalledPlugins } from "./kernel/plugin.js";
 import { managementModule } from "./management/module.js";
 import { coreModule } from "./modules/core.js";
+import { featuresModule, loadEnabledFeatures } from "./modules/features.js";
 import { pluginsModule } from "./modules/plugins.js";
 import { createOriginalStore } from "./originals/store.js";
 
@@ -37,12 +38,13 @@ const originals = createOriginalStore(config.originalsDir);
 const server = new McpServer({ name: "donguri-journal", version: "0.1.0" });
 const ctx = createContext({ server, store, originals, config });
 
-// Built-in modules. Installed plugins are loaded separately (see below).
-const modules: JournalModule[] = [coreModule, managementModule, pluginsModule];
+// Built-in modules. Installed plugins and opt-in features load separately (below).
+const modules: JournalModule[] = [coreModule, managementModule, pluginsModule, featuresModule];
 
 async function main(): Promise<void> {
   await registerModules(ctx, modules);
   await loadInstalledPlugins(ctx);
+  await loadEnabledFeatures(ctx);
   const transport = new StdioServerTransport();
   await server.connect(transport);
   ctx.log(`running on stdio (db: ${config.dbPath})`);
