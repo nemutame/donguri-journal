@@ -156,6 +156,17 @@ const NOTATION_LEGEND =
   "~ dropped (render struck through) | ○ event | – note. Prefix '*' when priority is set; " +
   "append '→ @name' when delegated_to is set; append '(carried Nx)' when carry_count > 0.";
 
+/**
+ * Chat scrolls away; a log is something the user keeps open. Every log-shaped
+ * projection carries this so agents reach for a persistent surface (#33).
+ */
+export const DOCUMENT_MEDIUM_HINT =
+  "This is a document-shaped view. Prefer rendering it into a persistent surface the " +
+  "user can keep open — an artifact/canvas document if your client has one, else a " +
+  "markdown file if you can write files (ask once where logs should live). Chat is for " +
+  "quick in-ritual glances only. After changes, regenerate and re-render instead of " +
+  "hand-editing the document.";
+
 function byOccurredAt(a: BujoItem, b: BujoItem): number {
   return a.occurred_at < b.occurred_at ? -1 : a.occurred_at > b.occurred_at ? 1 : 0;
 }
@@ -181,6 +192,7 @@ export function buildDayLog(
       layout:
         "Render as a compact Bullet Journal daily log: one line per item in the given order, " +
         "glyph first. Do not group by kind; rapid logging is chronological.",
+      medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like. This is a projection — offer, don't editorialize.",
     },
   };
@@ -224,6 +236,7 @@ export function buildMonthLog(
       layout:
         "Render as the BuJo monthly spread: a CALENDAR page (events by day, one line each) and " +
         "a TASK page (the month's tasks). Keep both compact.",
+      medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like.",
     },
   };
@@ -263,6 +276,7 @@ export function buildFutureLog(
       ...(truncated ? { warning: "More entries exist than could be projected — say so." } : {}),
       notation: NOTATION_LEGEND,
       layout: "Render as the BuJo future log: one short section per month, items one line each.",
+      medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like.",
     },
   };

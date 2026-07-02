@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { JournalStore } from "../src/db/store.js";
 import {
+  DOCUMENT_MEDIUM_HINT,
   buildDayLog,
   buildFutureLog,
   buildMonthLog,
@@ -327,6 +328,30 @@ describe("bujo projections", () => {
       store.openActions({ before: "2026-07-01T00:00:00Z" }).map((e) => e.body),
       ["haunted task"],
     );
+    store.close();
+  });
+});
+
+describe("document medium hints", () => {
+  let tmp: TempDir;
+  before(() => {
+    tmp = makeTempDir();
+  });
+  after(() => {
+    tmp.cleanup();
+  });
+
+  it("log-shaped views tell the agent to render a persistent document", () => {
+    const store = freshStore(tmp);
+    const day = buildDayLog(store, { date: "2026-07-02" });
+    const month = buildMonthLog(store, { month: "2026-07" });
+    const future = buildFutureLog(store, { from_month: "2026-08" });
+    for (const view of [day, month, future]) {
+      assert.equal(view.presentation_hints.medium, DOCUMENT_MEDIUM_HINT);
+    }
+    // Reconcile is the interactive ritual — it belongs in the conversation.
+    const reconcile = buildReconcile(store, { before_date: "2026-07-02" });
+    assert.equal(reconcile.presentation_hints.medium, undefined);
     store.close();
   });
 });
