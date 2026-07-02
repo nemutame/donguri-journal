@@ -12,8 +12,10 @@ export const SERVER_VERSION: string = (() => {
     const raw = readFileSync(new URL("../../package.json", import.meta.url), "utf8");
     const version = (JSON.parse(raw) as { version?: unknown }).version;
     return typeof version === "string" && version.length > 0 ? version : "unknown";
-  } catch {
-    // Never let version discovery break server startup.
+  } catch (err) {
+    // Never let version discovery break server startup — but leave a trace
+    // on stderr (stdout is reserved for the MCP protocol).
+    console.error("[donguri-journal] could not read package.json version:", err);
     return "unknown";
   }
 })();
