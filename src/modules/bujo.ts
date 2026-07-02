@@ -157,6 +157,16 @@ const NOTATION_LEGEND =
   "append '→ @name' when delegated_to is set; append '(carried Nx)' when carry_count > 0.";
 
 /**
+ * Agents raised on generic BuJo lore invent signifiers (！ ？ →) and scaffold
+ * empty section templates when a log is sparse — observed with Codex in the
+ * field. Every projection carries this to pin the rendering to the data.
+ */
+export const PROJECTION_FIDELITY_HINT =
+  "Render ONLY the items provided, with their given glyphs. Do not invent sections, " +
+  "signifiers, or placeholder lines — this notation has no others. When there are no " +
+  "items, render a single 'nothing logged yet' line, not an empty template.";
+
+/**
  * Chat scrolls away; a log is something the user keeps open. Every log-shaped
  * projection carries this so agents reach for a persistent surface (#33).
  */
@@ -192,6 +202,7 @@ export function buildDayLog(
       layout:
         "Render as a compact Bullet Journal daily log: one line per item in the given order, " +
         "glyph first. Do not group by kind; rapid logging is chronological.",
+      fidelity: PROJECTION_FIDELITY_HINT,
       medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like. This is a projection — offer, don't editorialize.",
     },
@@ -236,6 +247,7 @@ export function buildMonthLog(
       layout:
         "Render as the BuJo monthly spread: a CALENDAR page (events by day, one line each) and " +
         "a TASK page (the month's tasks). Keep both compact.",
+      fidelity: PROJECTION_FIDELITY_HINT,
       medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like.",
     },
@@ -276,6 +288,7 @@ export function buildFutureLog(
       ...(truncated ? { warning: "More entries exist than could be projected — say so." } : {}),
       notation: NOTATION_LEGEND,
       layout: "Render as the BuJo future log: one short section per month, items one line each.",
+      fidelity: PROJECTION_FIDELITY_HINT,
       medium: DOCUMENT_MEDIUM_HINT,
       tone: "Terse, page-like.",
     },

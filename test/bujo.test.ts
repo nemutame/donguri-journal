@@ -8,6 +8,7 @@ import { after, before, describe, it } from "node:test";
 import { JournalStore } from "../src/db/store.js";
 import {
   DOCUMENT_MEDIUM_HINT,
+  PROJECTION_FIDELITY_HINT,
   buildDayLog,
   buildFutureLog,
   buildMonthLog,
@@ -348,6 +349,7 @@ describe("document medium hints", () => {
     const future = buildFutureLog(store, { from_month: "2026-08" });
     for (const view of [day, month, future]) {
       assert.equal(view.presentation_hints.medium, DOCUMENT_MEDIUM_HINT);
+      assert.equal(view.presentation_hints.fidelity, PROJECTION_FIDELITY_HINT);
     }
     // Reconcile is the interactive ritual — it belongs in the conversation.
     const reconcile = buildReconcile(store, { before_date: "2026-07-02" });
