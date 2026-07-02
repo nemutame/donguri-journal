@@ -10,6 +10,7 @@ import {
   linkRelSchema,
   reservedAnnotationsSchema,
 } from "../db/annotations.js";
+import { hardDeleteEntry } from "../db/deletion.js";
 import { LinkError } from "../db/store.js";
 import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
@@ -518,37 +519,18 @@ export const coreModule: JournalModule = {
         if (mode === "soft") {
           return jsonResult({ id: args.id, mode, deleted: store.softDelete(args.id) });
         }
-        // Hard delete: erase the orphaned original FIRST so a failure can't leave its
-        // bytes behind, then purge the row + vector and VACUUM.
-        const peek = store.peekHardDelete(args.id);
-        if (!peek.exists) {
-          return jsonResult({ id: args.id, mode, deleted: false });
+        // Original-first ordering + retryability live in hardDeleteEntry,
+        // shared with the management UI's delete endpoint.
+        const outcome = await hardDeleteEntry(store, originals, ctx.log, args.id);
+        if (!outcome.ok) {
+          return errorResult(outcome.message);
         }
-        let originalErased: boolean | null = null;
-        if (peek.orphan && peek.original_ref) {
-          try {
-            originalErased = await originals.delete(peek.original_ref);
-          } catch (err) {
-            // Log details to stderr; keep the tool output generic (no raw exception).
-            ctx.log("failed to erase original during hard delete:", err);
-            return errorResult(
-              "Failed to erase the original; the entry was left intact so you can retry.",
-            );
-          }
-        }
-        // The original is already gone; if purge fails, the entry stays and the
-        // operation is safely retryable (a re-run re-purges; deleting an
-        // already-missing original is a no-op).
-        let deleted: boolean;
-        try {
-          deleted = store.purgeEntry(args.id);
-        } catch (err) {
-          ctx.log("failed to purge entry after erasing original:", err);
-          return errorResult(
-            "Erased the original but failed to purge the entry; run delete again to finish.",
-          );
-        }
-        return jsonResult({ id: args.id, mode, deleted, original_erased: originalErased });
+        return jsonResult({
+          id: args.id,
+          mode,
+          deleted: outcome.deleted,
+          ...(outcome.deleted ? { original_erased: outcome.original_erased } : {}),
+        });
       },
     );
 

@@ -176,6 +176,162 @@ describe("management UI host", () => {
   });
 });
 
+describe("management UI writes + export", () => {
+  let tmp: TempDir;
+  let ui: ManagementUi;
+  let token: string;
+  let port: number;
+  let store: JournalStore;
+  let originals: LocalDirStore;
+  let plainId: number;
+  let withOriginalId: number;
+  let linkedId: number;
+  let originalRef: string;
+
+  before(async () => {
+    tmp = makeTempDir();
+    const dbPath = tmp.file("journal.db");
+    store = new JournalStore(dbPath, new FakeEmbedder());
+    store.init();
+    originals = new LocalDirStore(tmp.file("originals"));
+
+    const plain = await store.insert({ body: "plain note", source_kind: "note" });
+    plainId = plain.id;
+    const saved = await originals.save({ data: Buffer.from("secret bytes"), mime: "text/plain" });
+    originalRef = saved.ref;
+    const withOriginal = await store.insert({
+      body: "note with original",
+      source_kind: "file",
+      original_ref: originalRef,
+    });
+    withOriginalId = withOriginal.id;
+    const linked = await store.insert({
+      body: "carried over",
+      links: [{ rel: "continues", to: plainId }],
+    });
+    linkedId = linked.id;
+
+    const config: JournalConfig = {
+      dbPath,
+      originalsDir: tmp.file("originals"),
+      maxOriginalBytes: 25 * 1024 * 1024,
+      pluginsDir: tmp.file("plugins"),
+      pluginsConfigPath: tmp.file("plugins.json"),
+      uiHost: "127.0.0.1",
+      uiPort: 0,
+    };
+    const ctx: JournalContext = {
+      server: undefined as unknown as McpServer,
+      store,
+      originals,
+      config,
+      log: () => {},
+      storage: (id) => store.moduleStorage(id),
+      onEntryPurged: (hook) => store.onEntryPurged(hook),
+    };
+    ui = await startManagementUi(ctx);
+    token = ui.token;
+    port = ui.port;
+  });
+
+  after(async () => {
+    await ui.close();
+    tmp.cleanup();
+  });
+
+  it("streams a lossless NDJSON export with meta, entries and links", async () => {
+    const res = await httpGet(port, "/api/export", { "x-donguri-token": token });
+    assert.equal(res.status, 200);
+    assert.match(res.contentType, /application\/x-ndjson/);
+    assert.match(
+      String(res.headers["content-disposition"]),
+      /attachment; filename="donguri-journal-/,
+    );
+    assert.equal(res.headers["cache-control"], "no-store");
+    const lines = res.body
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+    assert.equal(lines[0]?.type, "meta");
+    assert.equal(lines[0]?.format, "donguri-journal-export");
+    const entries = lines.filter((l) => l.type === "entry");
+    const links = lines.filter((l) => l.type === "link");
+    assert.equal(entries.length, 3);
+    assert.deepEqual(
+      links.map((l) => [l.from_id, l.rel, l.to_id]),
+      [[linkedId, "continues", plainId]],
+    );
+  });
+
+  it("export can exclude soft-deleted entries", async () => {
+    const doomed = await store.insert({ body: "export tombstone probe" });
+    store.softDelete(doomed.id);
+    const all = await httpGet(port, "/api/export?include_deleted=true", {
+      "x-donguri-token": token,
+    });
+    const active = await httpGet(port, "/api/export?include_deleted=false", {
+      "x-donguri-token": token,
+    });
+    assert.ok(all.body.includes("export tombstone probe"));
+    assert.ok(!active.body.includes("export tombstone probe"));
+  });
+
+  it("serves original bytes by ref and 404s unknown refs", async () => {
+    const res = await httpGet(port, `/api/original?ref=${encodeURIComponent(originalRef)}`, {
+      "x-donguri-token": token,
+    });
+    assert.equal(res.status, 200);
+    assert.match(res.contentType, /text\/plain/);
+    assert.equal(res.body, "secret bytes");
+    const missing = await httpGet(port, `/api/original?ref=local:${"0".repeat(64)}`, {
+      "x-donguri-token": token,
+    });
+    assert.equal(missing.status, 404);
+  });
+
+  it("rejects deletes without a token and GETs on the delete route", async () => {
+    const noToken = await httpGet(port, `/api/entries/${plainId}/delete?mode=soft`, {}, "POST");
+    assert.equal(noToken.status, 401);
+    const wrongMethod = await httpGet(port, `/api/entries/${plainId}/delete?mode=soft`, {
+      "x-donguri-token": token,
+    });
+    assert.equal(wrongMethod.status, 405);
+    const badMode = await httpGet(
+      port,
+      `/api/entries/${plainId}/delete?mode=shred`,
+      { "x-donguri-token": token },
+      "POST",
+    );
+    assert.equal(badMode.status, 400);
+  });
+
+  it("soft delete tombstones the entry (recoverable, hidden by default)", async () => {
+    const res = await httpGet(
+      port,
+      `/api/entries/${linkedId}/delete?mode=soft`,
+      { "x-donguri-token": token },
+      "POST",
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json(), { id: linkedId, mode: "soft", deleted: true });
+    assert.equal(store.getEntry(linkedId), null);
+    assert.ok(store.getEntry(linkedId, { include_deleted: true }));
+  });
+
+  it("hard delete purges the entry and erases its orphaned original", async () => {
+    const res = await httpGet(
+      port,
+      `/api/entries/${withOriginalId}/delete?mode=hard`,
+      { "x-donguri-token": token },
+      "POST",
+    );
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json(), { id: withOriginalId, mode: "hard", deleted: true });
+    assert.equal(store.getEntry(withOriginalId, { include_deleted: true }), null);
+    assert.equal(await originals.get(originalRef), null);
+  });
+});
+
 describe("management UI bind safety", () => {
   it("refuses a non-loopback uiHost and binds 127.0.0.1 instead", async () => {
     const tmp = makeTempDir();

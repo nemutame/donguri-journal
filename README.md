@@ -34,8 +34,8 @@ open-ended part, and that's what **plugins** extend.
   is swappable for power users.
 
 > **Status:** Phase 1 (capture / recall) + Phase 1.5 (review / insight), local
-> originals storage, entry management, plugin loading, and a **read-only management
-> console** are implemented. UI-driven delete / export, an album view, a curated
+> originals storage, entry management, plugin loading, and a **management console**
+> (browse / search / delete / export) are implemented. An album view, a curated
 > plugin registry, and local-first sync are planned — see
 > [docs/DESIGN.md](docs/DESIGN.md).
 

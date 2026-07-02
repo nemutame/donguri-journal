@@ -124,7 +124,7 @@ version of it as server `instructions`, if your client surfaces them.
 - `generate_review` / `surface_patterns` — periodic reviews and recurring themes
 - `update_entry_status` / `link_entries` — annotations and entry-to-entry links
 - `get_original`, `delete_entry` (soft/hard), `reindex`, `storage_stats`
-- `open_management_ui` — read-only local web console
+- `open_management_ui` — local web console (browse, search, delete, export, original download)
 
 **Opt-in features — their tools stay hidden until enabled.** `list_features` shows
 what exists; `enable_feature` turns one on live (no restart). Currently:

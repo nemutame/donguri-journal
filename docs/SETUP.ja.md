@@ -123,7 +123,7 @@ MCP ハンドシェイクの `instructions` としても短縮版が届きます
 - `generate_review` / `surface_patterns` — 定期的な振り返りと再発テーマの発見
 - `update_entry_status` / `link_entries` — 注釈とエントリ間リンク
 - `get_original`、`delete_entry`（soft/hard）、`reindex`、`storage_stats`
-- `open_management_ui` — 読み取り専用のローカル Web コンソール
+- `open_management_ui` — ローカル Web コンソール（閲覧・検索・削除・エクスポート・原本ダウンロード）
 
 **opt-in 機能 — 有効化するまでツールは見えません。** `list_features` で一覧を確認し、
 `enable_feature` で即時有効化できます（再起動不要）。現在は次のとおりです:

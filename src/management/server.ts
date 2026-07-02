@@ -13,15 +13,19 @@
  *    compared in constant time.
  *  - The Host header is pinned to a loopback name, so a remote page cannot use
  *    DNS rebinding to reach the API through the victim's browser.
- *  - Read-only in this first slice: only GET, no mutations, and the entry data
- *    it serves never includes filesystem paths.
+ *  - Mutations are POST-only and limited to entry deletion (the owner deleting
+ *    their own data). Export/download endpoints stream raw journal data to the
+ *    owner's browser — deliberately NOT through the LLM. Entry data never
+ *    includes filesystem paths.
  */
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { statSync } from "node:fs";
 import { type Server, type ServerResponse, createServer } from "node:http";
 import { isIP } from "node:net";
 import { z } from "zod";
+import { hardDeleteEntry } from "../db/deletion.js";
 import type { JournalContext } from "../kernel/context.js";
+import { SERVER_VERSION } from "../kernel/version.js";
 import { renderApp } from "./ui.js";
 
 export interface ManagementUi {
@@ -133,12 +137,88 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
       }
 
       if (url.pathname.startsWith("/api/")) {
+        if (!authorized) {
+          sendJson(res, 401, { error: "Unauthorized" });
+          return;
+        }
+
+        // The one mutating route: POST /api/entries/<id>/delete?mode=soft|hard.
+        // Deletion is the owner erasing their own data; hard mode reuses the
+        // original-first orchestration shared with the delete_entry MCP tool.
+        const deleteMatch = url.pathname.match(/^\/api\/entries\/(\d+)\/delete$/);
+        if (deleteMatch) {
+          if (method !== "POST") {
+            sendJson(res, 405, { error: "Method not allowed" });
+            return;
+          }
+          const id = Number(deleteMatch[1]);
+          const mode = url.searchParams.get("mode") ?? "soft";
+          if (mode !== "soft" && mode !== "hard") {
+            sendJson(res, 400, { error: "mode must be 'soft' or 'hard'" });
+            return;
+          }
+          if (mode === "soft") {
+            sendJson(res, 200, { id, mode, deleted: store.softDelete(id) });
+            return;
+          }
+          const outcome = await hardDeleteEntry(store, originals, ctx.log, id);
+          if (!outcome.ok) {
+            sendJson(res, 500, { error: outcome.message });
+            return;
+          }
+          sendJson(res, 200, { id, mode, deleted: outcome.deleted });
+          return;
+        }
+
         if (method !== "GET") {
           sendJson(res, 405, { error: "Method not allowed" });
           return;
         }
-        if (!authorized) {
-          sendJson(res, 401, { error: "Unauthorized" });
+
+        // Lossless NDJSON export, streamed straight to the owner's browser —
+        // bulk data stays out of the LLM context by design.
+        if (url.pathname === "/api/export") {
+          const includeDeleted = url.searchParams.get("include_deleted") !== "false";
+          const stamp = new Date().toISOString().slice(0, 10);
+          res.writeHead(200, {
+            "content-type": "application/x-ndjson; charset=utf-8",
+            "content-disposition": `attachment; filename="donguri-journal-${stamp}.ndjson"`,
+            "cache-control": "no-store",
+          });
+          const line = (obj: unknown): boolean => res.write(`${JSON.stringify(obj)}\n`);
+          line({
+            type: "meta",
+            format: "donguri-journal-export",
+            format_version: 1,
+            server_version: SERVER_VERSION,
+            exported_at: new Date().toISOString(),
+            include_deleted: includeDeleted,
+          });
+          for (const entry of store.iterateEntries({ include_deleted: includeDeleted })) {
+            line({ type: "entry", ...entry });
+          }
+          for (const link of store.iterateLinks()) {
+            line({ type: "link", ...link });
+          }
+          res.end();
+          return;
+        }
+
+        // Original bytes by ref (content-addressed; get() validates the ref
+        // shape, so no path can be constructed from user input).
+        if (url.pathname === "/api/original") {
+          const ref = url.searchParams.get("ref") ?? "";
+          const loaded = await originals.get(ref);
+          if (!loaded) {
+            sendJson(res, 404, { error: "Original not found" });
+            return;
+          }
+          res.writeHead(200, {
+            "content-type": loaded.mime ?? "application/octet-stream",
+            "content-disposition": `attachment; filename="${ref.replace(/[^a-z0-9:]/gi, "").slice(-16)}"`,
+            "cache-control": "no-store",
+          });
+          res.end(loaded.data);
           return;
         }
 
