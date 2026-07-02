@@ -156,6 +156,136 @@ describe("JournalStore", () => {
     store.close();
   });
 
+  it("insert with links creates the relations (new → old)", async () => {
+    const store = freshStore(tmp);
+    const old = await store.insert({ body: "write blog draft", meta: { nature: "action" } });
+    const carried = await store.insert({
+      body: "write blog draft (day 2)",
+      links: [{ rel: "continues", to: old.id }],
+    });
+
+    const fromNew = store.getLinks(carried.id);
+    assert.deepEqual(
+      fromNew.outgoing.map((l) => [l.rel, l.to_id]),
+      [["continues", old.id]],
+    );
+    const atOld = store.getLinks(old.id);
+    assert.deepEqual(
+      atOld.incoming.map((l) => [l.rel, l.from_id]),
+      [["continues", carried.id]],
+    );
+    store.close();
+  });
+
+  it("rejects a link to a missing target and captures nothing", async () => {
+    const store = freshStore(tmp);
+    const before = store.entryStats().active;
+    await assert.rejects(
+      store.insert({ body: "dangling", links: [{ rel: "references", to: 99999 }] }),
+      /does not exist/,
+    );
+    assert.equal(store.entryStats().active, before, "aborted capture must not leave an entry");
+    assert.equal(store.entryStats().vectors, before, "nor a vector");
+    store.close();
+  });
+
+  it("rejects self-links and links to soft-deleted targets", async () => {
+    const store = freshStore(tmp);
+    const a = await store.insert({ body: "link base A" });
+    const b = await store.insert({ body: "link base B" });
+    assert.throws(() => store.addLink(a.id, "references", a.id), /cannot link to itself/);
+    store.softDelete(b.id);
+    assert.throws(() => store.addLink(a.id, "references", b.id), /does not exist/);
+    store.close();
+  });
+
+  it("addLink is idempotent and a deduped capture still attaches links", async () => {
+    const store = freshStore(tmp);
+    const old = await store.insert({ body: "old task", occurred_at: "2026-01-01T00:00:00Z" });
+    const a = await store.insert({ body: "new task", occurred_at: "2026-01-02T00:00:00Z" });
+
+    assert.equal(store.addLink(a.id, "references", old.id), true);
+    assert.equal(store.addLink(a.id, "references", old.id), false, "re-add is a no-op");
+
+    // Identical re-capture (dedup) carrying a new link must still attach it.
+    const again = await store.insert({
+      body: "new task",
+      occurred_at: "2026-01-02T00:00:00Z",
+      links: [{ rel: "continues", to: old.id }],
+    });
+    assert.equal(again.deduped, true);
+    assert.deepEqual(
+      store
+        .getLinks(a.id)
+        .outgoing.map((l) => l.rel)
+        .sort(),
+      ["continues", "references"],
+    );
+    store.close();
+  });
+
+  it("updateAnnotations merges reserved keys and preserves free-form meta", async () => {
+    const store = freshStore(tmp);
+    const { id } = await store.insert({
+      body: "annotate me",
+      meta: { nature: "action", status: "open", mood: "focused" },
+    });
+
+    const meta = store.updateAnnotations(id, { status: "done", delegated_to: "Tanaka" });
+    assert.ok(meta);
+    assert.equal(meta.status, "done");
+    assert.equal(meta.delegated_to, "Tanaka");
+    assert.equal(meta.nature, "action", "untouched reserved key survives");
+    assert.equal(meta.mood, "focused", "free-form key survives");
+
+    // The persisted row reflects the merge; body/vector untouched.
+    const [row] = store.query({ tag: undefined, limit: 500 }).filter((e) => e.id === id);
+    assert.equal(row?.meta.status, "done");
+    assert.equal(store.entryStats().vectors, store.entryStats().active);
+    store.close();
+  });
+
+  it("updateAnnotations clears a key when the patch value is null", async () => {
+    const store = freshStore(tmp);
+    const { id } = await store.insert({
+      body: "clear me",
+      meta: { nature: "action", priority: true, due: "2026-07-10" },
+    });
+    const meta = store.updateAnnotations(id, { priority: null, due: null });
+    assert.ok(meta);
+    assert.ok(!("priority" in meta), "cleared key is removed, not stored as null");
+    assert.ok(!("due" in meta));
+    assert.equal(meta.nature, "action");
+    store.close();
+  });
+
+  it("updateAnnotations returns null for missing or soft-deleted entries", async () => {
+    const store = freshStore(tmp);
+    assert.equal(store.updateAnnotations(99999, { status: "done" }), null);
+    const { id } = await store.insert({ body: "soon deleted" });
+    store.softDelete(id);
+    assert.equal(store.updateAnnotations(id, { status: "done" }), null);
+    store.close();
+  });
+
+  it("hard delete purges links in both directions", async () => {
+    const store = freshStore(tmp);
+    const a = await store.insert({ body: "purge links A" });
+    const b = await store.insert({
+      body: "purge links B",
+      links: [{ rel: "continues", to: a.id }],
+    });
+    const c = await store.insert({
+      body: "purge links C",
+      links: [{ rel: "references", to: b.id }],
+    });
+
+    assert.equal(store.purgeEntry(b.id), true);
+    assert.equal(store.getLinks(a.id).incoming.length, 0, "incoming side gone");
+    assert.equal(store.getLinks(c.id).outgoing.length, 0, "outgoing side gone");
+    store.close();
+  });
+
   it("reindex rebuilds every vector and keeps recall working", async () => {
     const store = freshStore(tmp);
     await store.insert({ body: "alpha beta" });

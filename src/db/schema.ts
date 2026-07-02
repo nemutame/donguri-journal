@@ -8,12 +8,16 @@
  *  - `vec_entries` is a disposable, rebuildable vector index (sqlite-vec vec0),
  *    keyed by `rowid = entries.id`.
  *
+ * `entry_links` holds typed relations between entries (DESIGN §6). Links
+ * always point new → old (`from_id` is the later entry), so relating entries
+ * never mutates the past; rows are append-only.
+ *
  * `embedding_meta` records the active model/dim so a backend switch can be
  * detected. `schema_meta` holds the schema version.
  */
 import type Database from "better-sqlite3";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export function createSchema(db: Database.Database, dim: number): void {
   if (!Number.isInteger(dim) || dim <= 0) {
@@ -39,6 +43,17 @@ export function createSchema(db: Database.Database, dim: number): void {
     CREATE INDEX IF NOT EXISTS idx_entries_created_at ON entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_entries_occurred_at ON entries(occurred_at);
     CREATE INDEX IF NOT EXISTS idx_entries_source_kind ON entries(source_kind);
+
+    CREATE TABLE IF NOT EXISTS entry_links (
+      from_id INTEGER NOT NULL,
+      rel TEXT NOT NULL,
+      to_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      CHECK (from_id != to_id),
+      PRIMARY KEY (from_id, rel, to_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_entry_links_to ON entry_links(to_id);
 
     CREATE TABLE IF NOT EXISTS schema_meta (
       key TEXT PRIMARY KEY,
