@@ -79,12 +79,17 @@ donguri's distinctives are *local-first, MCP-native, multimodal-via-LLM*.
 7. **Small core, opt-in everything else.** Heavy/optional features (image/audio
    convenience, Eagle, cloud embeddings, sync, UIs) are opt-in plugins. Low
    default setup barrier is a primary value.
-8. **Owner-deletable.** Originals are never destroyed *by the system* (extraction
+8. **The core is view-neutral; output formats are lenses.** Stored data never
+   encodes a presentation format (no "BuJo" markers in the data). Capture
+   records universal semantics — nature / status / time granularity / relations
+   between entries — and formats like Bullet Journal are opt-in, **read-only
+   projections** over them (§6). Disabling a lens loses nothing.
+9. **Owner-deletable.** Originals are never destroyed *by the system* (extraction
    / reindex never lose them), but the owner can delete their own data — including
    a true, permanent erase for secrets captured by mistake.
-9. **Language: TypeScript.** The heavy ML is offloaded to the LLM + embedding
-   lib; the substance is MCP + local DB + (future) CRDT/P2P sync.
-10. **License: MIT.**
+10. **Language: TypeScript.** The heavy ML is offloaded to the LLM + embedding
+    lib; the substance is MCP + local DB + (future) CRDT/P2P sync.
+11. **License: MIT.**
 
 ---
 
@@ -178,7 +183,68 @@ VACUUMs so bytes do not linger.
 
 ---
 
-## 6. Tools
+## 6. Lenses: a view-neutral core (planned)
+
+Journal data outlives any single way of looking at it. donguri therefore never
+burns a presentation format into stored data: the core records **universal
+semantics**, and output formats — Bullet Journal, GTD lists, kanban, calendars —
+are **opt-in, read-only projections ("lenses")** provided by modules. This is
+the journaling-first stance of the project: turning a lens off loses nothing,
+and the same entries remain fully usable by query/recall and by every other
+lens.
+
+**Core annotation vocabulary (view-neutral).** Reserved, optional `meta` keys,
+validated at the tool boundary when present (everything else in `meta` stays
+free-form):
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `nature` | `action` / `event` / `note` | what the content *is* (`source_kind` is the medium) |
+| `status` | `open` / `done` / `dropped` | an action's lifecycle (terminal states only) |
+| `priority` | `true` | importance marker |
+| `due` | ISO date | deadline |
+| `delegated_to` | string | who it was handed off to |
+| `granularity` | `day` (default) / `month` | how precisely `occurred_at` places the entry in time |
+
+**Relations are first-class.** A planned `entry_links` table
+(`from_id, rel, to_id, created_at`) records typed links between entries, always
+pointing **new → old**, so relating entries never mutates the past. Initial
+`rel` vocabulary: `continues` (this entry carries over / rewrites an earlier
+one) and `references` (general association).
+
+**Mutation discipline.** `body`, `occurred_at`, `content_hash` and the vector
+are immutable. `meta` is a mutable *annotation* (a status change touches
+nothing else — no reindex). Relations are append-only.
+
+### Worked example: the BuJo lens
+
+The first planned lens renders Bullet Journal daily / monthly / future logs
+through read-only tools (`bujo_day`, `bujo_month`, `bujo_future`,
+`bujo_reconcile`). No BuJo marker exists in the data — every glyph is derived:
+
+| Generic data | BuJo rendering |
+| --- | --- |
+| `action` + `open` | `•` task |
+| `action` + `done` | `x` completed |
+| `action` with an incoming `continues` link | `>` migrated or `<` scheduled — derived from where the successor lives (another day, this month's list, a future month) |
+| `action` + `dropped` | ~~struck through~~ |
+| `action` + `delegated_to` | `•` … `→ @person` |
+| `event` | `○` event |
+| `note` (or no `nature`) | `–` note |
+| `priority: true` | leading `*` |
+
+Carrying a task over is BuJo's deliberate morning ritual, and it maps onto a
+**pure append**: `bujo_reconcile` surfaces yesterday's undecided open actions,
+and the user settles each one in conversation — done, dropped, or carried into
+today as a **new entry** (whose body may be rewritten; that friction is the
+point) linked `continues → old`. The old entry needs no update: the incoming
+link is what renders it as `>`. The chain of `continues` links across days and
+months *is* the migration history — "carried over three times; is this still
+worth doing?" becomes a queryable fact.
+
+---
+
+## 7. Tools
 
 Current (✅) and planned (🔜):
 
@@ -197,12 +263,14 @@ Current (✅) and planned (🔜):
 | `list_installed_plugins` | Installed plugins + capabilities | ✅ |
 | `install_plugin` / `uninstall_plugin` | Local install (propose+confirm, loads live) / uninstall | ✅ |
 | `list_available_plugins` / `setup_plugin` / `enable_plugin` / `disable_plugin` | Registry discovery + richer lifecycle | 🔜 |
+| `update_entry_status` / `link_entries` | View-neutral writes: annotation updates + typed entry links (§6) | 🔜 |
+| `bujo_day` / `bujo_month` / `bujo_future` / `bujo_reconcile` | BuJo lens: daily / monthly / future logs + migration review (read-only projections, §6) | 🔜 |
 
-Export is intentionally **not** a data-returning tool — see §7.
+Export is intentionally **not** a data-returning tool — see §8.
 
 ---
 
-## 7. Deletion & export
+## 8. Deletion & export
 
 **Deletion is owner-driven and user-selectable** (motivation: a secret captured
 by mistake must be erasable):
@@ -222,7 +290,7 @@ originals bundled (e.g. a zip).
 
 ---
 
-## 8. Management UI (opt-in)
+## 9. Management UI (opt-in)
 
 The capture/recall interface stays the LLM. The UI is a separate, opt-in
 **management/inspection console** — "the nest's inspection hatch" — for what
@@ -256,7 +324,7 @@ module, launched the same way (`open_album`).
 
 ---
 
-## 9. Extension / plugin platform (planned)
+## 10. Extension / plugin platform (planned)
 
 donguri is designed to become a platform where the **agent installs capabilities
 on request** — the user never touches a CLI.
@@ -317,7 +385,7 @@ hardening.
 
 ---
 
-## 10. Roadmap
+## 11. Roadmap
 
 - **Phase 1** — core capture / query / recall over SQLite + sqlite-vec. ✅
 - **Phase 1.5** — review / insight tools (`generate_review`, `surface_patterns`)
@@ -328,7 +396,10 @@ hardening.
   done; export, management UI, and album UI are planned. 🔜
 - **Plugin platform** — contract + kernel ctx ✅, local install + dynamic load
   (`tools/list_changed`) ✅; hosted registry and capability/isolation hardening
-  are next (see §9). 🔜
+  are next (see §10). 🔜
+- **Lens layer** — view-neutral annotation vocabulary + `entry_links` in the
+  core, then the BuJo lens (daily / monthly / future logs + the migration
+  ritual) as the first read-only projection (§6). 🔜
 - **Phase 2 — local-first sync** (separate, hard): CRDT (Automerge/Yjs) +
   pluggable transport (P2P via libp2p / relay / cloud storage), with end-to-end
   encryption built in from the start. **No blockchain** (wrong trust model:
@@ -337,6 +408,6 @@ hardening.
 
 ---
 
-## 11. License
+## 12. License
 
 [MIT](../LICENSE) © Nemutame.
