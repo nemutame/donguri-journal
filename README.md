@@ -180,6 +180,8 @@ each).
 | `storage_stats` | Capacity: entry counts (active vs soft-deleted), vectors, breakdown by source kind / month, originals count + bytes, and DB size. |
 | `delete_entry` | Delete an entry — `mode: soft` (recoverable tombstone) or `hard` (permanent purge of entry + vector + orphaned original, with VACUUM). |
 | `open_management_ui` | Start a **localhost-only** web console for the owner to browse, filter, semantically recall, and see storage stats directly — outside the LLM conversation. Returns a token-bearing URL to open in a browser. |
+| `list_features` / `enable_feature` / `disable_feature` | Built-in opt-in features (first-party, no install ceremony): list them and toggle live — enabling registers a feature's tools immediately, disabling removes them; the choice persists. |
+| `bujo_day` / `bujo_month` / `bujo_future` / `bujo_reconcile` | **Bullet Journal lens** (opt-in via `enable_feature: bujo`, read-only): daily / monthly / future logs with derived glyphs (`•` `x` `>` `<` `○` `–`), plus the migration review that walks open actions through done / dropped / carry-over. |
 | `list_installed_plugins` | List installed plugins with their enabled state, version, and declared capabilities. |
 | `install_plugin` | Install a local plugin. Two-step: propose (see manifest + capabilities), then `confirm: true`. Loads immediately — no restart. |
 | `uninstall_plugin` | Remove an installed plugin from disk and the registry. Tools it already registered stay available until the server restarts. |

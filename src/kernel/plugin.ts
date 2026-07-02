@@ -40,12 +40,14 @@ export type PluginManifest = z.infer<typeof manifestSchema>;
 
 const pluginConfigSchema = z.object({
   plugins: z.array(z.object({ id: z.string(), enabled: z.boolean() })).default([]),
+  /** Built-in opt-in features (lens views etc.), keyed by feature id. */
+  features: z.record(z.boolean()).default({}),
 });
 
 export type PluginConfig = z.infer<typeof pluginConfigSchema>;
 
 export async function loadPluginConfig(path: string): Promise<PluginConfig> {
-  if (!existsSync(path)) return { plugins: [] };
+  if (!existsSync(path)) return { plugins: [], features: {} };
   const raw = await readFile(path, "utf8");
   try {
     return pluginConfigSchema.parse(JSON.parse(raw));

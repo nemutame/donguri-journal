@@ -80,14 +80,20 @@ describe("plugin config persistence", () => {
   });
 
   it("returns an empty config when the file does not exist", async () => {
-    assert.deepEqual(await loadPluginConfig(tmp.file("nope.json")), { plugins: [] });
+    assert.deepEqual(await loadPluginConfig(tmp.file("nope.json")), { plugins: [], features: {} });
   });
 
   it("round-trips through save + load", async () => {
     const path = tmp.file("plugins.json");
-    await savePluginConfig(path, { plugins: [{ id: "hello", enabled: true }] });
+    await savePluginConfig(path, {
+      plugins: [{ id: "hello", enabled: true }],
+      features: { bujo: true },
+    });
     const loaded = await loadPluginConfig(path);
-    assert.deepEqual(loaded, { plugins: [{ id: "hello", enabled: true }] });
+    assert.deepEqual(loaded, {
+      plugins: [{ id: "hello", enabled: true }],
+      features: { bujo: true },
+    });
   });
 
   it("throws on a corrupt config instead of silently emptying it", async () => {
