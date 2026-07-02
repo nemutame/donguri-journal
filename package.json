@@ -1,6 +1,6 @@
 {
   "name": "donguri-journal",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Local-first, time-aware journaling memory server over MCP",
   "license": "MIT",
   "author": "Nemutame",
