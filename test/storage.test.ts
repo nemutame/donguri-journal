@@ -36,6 +36,9 @@ describe("moduleStorage", () => {
     assert.throws(() => storage.tableName("Bad Name"), /invalid module table name/);
     assert.throws(() => storage.tableName("drop table;--"), /invalid module table name/);
     assert.throws(() => store.moduleStorage("Bad Id!"), /invalid module id/);
+    // Underscores are rejected in module ids, so the hyphen→underscore prefix
+    // mapping is injective: "my_lens" can never collide with "my-lens".
+    assert.throws(() => store.moduleStorage("my_lens"), /invalid module id/);
     store.close();
   });
 
