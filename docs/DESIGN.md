@@ -325,8 +325,10 @@ Decisions:
 - **Local web UI is the core**; an optional thin **Tauri tray shell** can wrap
   the same web UI later for a resident/toolbar experience — without forking the
   implementation ("web-core first, resident-tray later").
-- **Access**: bind to `localhost` only; no token (local-first, single user). A
-  token can be added later as opt-in if a multi-user machine becomes a concern.
+- **Access**: bind to `localhost` only, with a **per-session token required** —
+  the URL returned by `open_management_ui` carries the token, and both the UI
+  shell and `/api/*` are authorized with it. Other auth schemes can be added
+  later as opt-in if needed.
 - **Shared UI host**: one local host process mounts multiple UI modules at routes
   (`/manage`, `/album`, …) to avoid port sprawl and centralize lifecycle.
 

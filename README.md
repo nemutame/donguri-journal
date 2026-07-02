@@ -211,7 +211,7 @@ Two layers, so the index is always rebuildable and originals are never lost:
 ## Contributing
 
 Contributions are always welcome — **issues and PRs in Japanese are welcome too**.
-Before proposing larger changes, we'd appreciate it if you had a look at the design
+Before proposing larger changes, we'd appreciate it if you took a look at the design
 intent in [docs/DESIGN.md](docs/DESIGN.md).
 
 ```bash
