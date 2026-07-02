@@ -28,6 +28,11 @@ from the tools and re-render the whole document. The journal is the source of tr
 an edited rendering silently diverges, and a change written only into the document is
 lost. Journal first, document second.
 
+Fidelity: render only what the projection returns — the provided items with their
+provided glyphs. Never invent sections, signifiers, or placeholder lines from generic
+BuJo lore (no ！/？/→, no scaffolded "tasks/notes" headings). An empty day is a single
+"nothing logged yet" line, not a template.
+
 ## The morning ritual (daily)
 
 1. \`bujo_reconcile\` for today (pass the user's \`tz_offset_minutes\`) → lists every

@@ -108,6 +108,7 @@ describe("feature toggles over MCP", () => {
     assert.match(playbook, /bujo_reconcile/);
     assert.match(playbook, /continues/);
     assert.match(playbook, /persistent surface/i);
+    assert.match(playbook, /never invent/i);
     assert.equal(enabled.playbook_hint, PLAYBOOK_INSTALL_HINT);
 
     // Idempotent re-enable: same payload shape, no duplicate registration.
