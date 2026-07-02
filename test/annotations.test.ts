@@ -39,9 +39,10 @@ describe("annotatedMetaSchema", () => {
     assert.equal(annotatedMetaSchema.safeParse({ priority: false }).success, false);
   });
 
-  it("rejects a due that is not a plain ISO date", () => {
+  it("rejects a due that is not a plain, real ISO date", () => {
     assert.equal(annotatedMetaSchema.safeParse({ due: "2026-07-05T09:00:00Z" }).success, false);
     assert.equal(annotatedMetaSchema.safeParse({ due: "next week" }).success, false);
+    assert.equal(annotatedMetaSchema.safeParse({ due: "2026-13-45" }).success, false);
   });
 
   it("rejects an unknown granularity", () => {

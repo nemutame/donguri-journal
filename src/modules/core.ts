@@ -212,17 +212,24 @@ export const coreModule: JournalModule = {
         description:
           "Update the view-neutral annotations of an existing entry — primarily an action's " +
           "lifecycle: mark it 'done' or 'dropped' (terminal), reopen it with 'open', set a due " +
-          "date, mark it priority, or record who it was delegated to. Only the annotation " +
-          "(`meta`) changes; the entry's text and timestamps are immutable. NOTE: carrying an " +
-          "unfinished action over to another day is NOT a status change — capture a NEW entry " +
-          "with a `links: [{rel: 'continues', to: <old id>}]` relation instead; the old entry " +
-          "then renders as migrated automatically.",
+          "date, mark it priority, or record who it was delegated to. Pass null for priority / " +
+          "due / delegated_to to CLEAR a previously set value. Only the annotation (`meta`) " +
+          "changes; the entry's text and timestamps are immutable. NOTE: carrying an unfinished " +
+          "action over to another day is NOT a status change — capture a NEW entry with a " +
+          "`links: [{rel: 'continues', to: <old id>}]` relation instead, so the carry-over " +
+          "history is preserved as a queryable relation.",
         inputSchema: {
           id: z.number().int().describe("The entry id to annotate."),
           status: reservedAnnotationsSchema.shape.status,
-          priority: reservedAnnotationsSchema.shape.priority,
-          due: reservedAnnotationsSchema.shape.due,
-          delegated_to: reservedAnnotationsSchema.shape.delegated_to,
+          priority: reservedAnnotationsSchema.shape.priority
+            .nullable()
+            .describe("Importance marker: true to set, null to clear."),
+          due: reservedAnnotationsSchema.shape.due
+            .nullable()
+            .describe("Deadline as an ISO date (YYYY-MM-DD); null to clear."),
+          delegated_to: reservedAnnotationsSchema.shape.delegated_to
+            .nullable()
+            .describe("Who the action was handed off to; null to clear."),
         },
       },
       async (args) => {

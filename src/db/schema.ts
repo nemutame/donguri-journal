@@ -49,6 +49,7 @@ export function createSchema(db: Database.Database, dim: number): void {
       rel TEXT NOT NULL,
       to_id INTEGER NOT NULL,
       created_at TEXT NOT NULL,
+      CHECK (from_id != to_id),
       PRIMARY KEY (from_id, rel, to_id)
     );
 

@@ -245,6 +245,20 @@ describe("JournalStore", () => {
     store.close();
   });
 
+  it("updateAnnotations clears a key when the patch value is null", async () => {
+    const store = freshStore(tmp);
+    const { id } = await store.insert({
+      body: "clear me",
+      meta: { nature: "action", priority: true, due: "2026-07-10" },
+    });
+    const meta = store.updateAnnotations(id, { priority: null, due: null });
+    assert.ok(meta);
+    assert.ok(!("priority" in meta), "cleared key is removed, not stored as null");
+    assert.ok(!("due" in meta));
+    assert.equal(meta.nature, "action");
+    store.close();
+  });
+
   it("updateAnnotations returns null for missing or soft-deleted entries", async () => {
     const store = freshStore(tmp);
     assert.equal(store.updateAnnotations(99999, { status: "done" }), null);

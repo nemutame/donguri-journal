@@ -32,7 +32,7 @@ export const reservedAnnotationsSchema = z.object({
     .describe("Importance marker. Pass true or omit the key entirely (never false)."),
   due: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "due must be an ISO date (YYYY-MM-DD)")
+    .date("due must be a valid ISO date (YYYY-MM-DD)")
     .optional()
     .describe("Deadline as an ISO date (YYYY-MM-DD)."),
   delegated_to: z.string().min(1).optional().describe("Who the action was handed off to."),
