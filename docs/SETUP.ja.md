@@ -110,6 +110,34 @@ command = "donguri-journal"
 （グローバルインストールはシステム状態の変更です）、そして**オフラインでは静かにスキップする**
 ことです。
 
+## 7. このサーバーができること（能力の全体像）
+
+セットアップ後に一度読んで、全体像を把握してください。クライアントが対応していれば、
+MCP ハンドシェイクの `instructions` としても短縮版が届きます。
+
+**コアツール（常時有効）:**
+
+- `capture` — メモ・出来事・ファイルを貯める（原本バイトも一緒に渡せます）
+- `query_entries` — 構造化検索（日付・タグ・種別）
+- `recall_related` — 過去エントリの意味検索
+- `generate_review` / `surface_patterns` — 定期的な振り返りと再発テーマの発見
+- `update_entry_status` / `link_entries` — 注釈とエントリ間リンク
+- `get_original`、`delete_entry`（soft/hard）、`reindex`、`storage_stats`
+- `open_management_ui` — 読み取り専用のローカル Web コンソール
+
+**opt-in 機能 — 有効化するまでツールは見えません。** `list_features` で一覧を確認し、
+`enable_feature` で即時有効化できます（再起動不要）。現在は次のとおりです:
+
+- **Bullet Journal レンズ**（`bujo`）— 読み取り専用の `bujo_day` / `bujo_month` /
+  `bujo_future` / `bujo_reconcile`（デイリー・マンスリー・フューチャーログと持ち越しの
+  棚卸）。書き込みは引き続き上記の汎用ツールで行います。レンズはあくまでビューです。
+
+**プラグイン:** `list_installed_plugins` / `install_plugin` / `uninstall_plugin` —
+ローカルインストール（所有者の明示的な承認が必要です）。
+
+> **エージェントへ:** ユーザーの依頼に合うツールが見当たらないとき（例:「デイリーログを
+> 見せて」）は、「できません」と答える前に `list_features` を確認してください。
+
 ## トラブルシューティング
 
 | 症状 | 主な原因 | 対処 |

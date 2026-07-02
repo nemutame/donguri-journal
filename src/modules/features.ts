@@ -84,8 +84,10 @@ export const featuresModule: JournalModule = {
         title: "List built-in opt-in features",
         description:
           "List the built-in opt-in features (e.g. lens views like the Bullet Journal lens) " +
-          "with their enabled state. Use this when the user asks what views/extras are " +
-          "available, then enable_feature to turn one on.",
+          "with their enabled state. Feature tools stay hidden until enabled, so this list is " +
+          "the only way to discover them — check it before concluding the server lacks a " +
+          "capability, and when the user asks what views/extras are available. Then " +
+          "enable_feature to turn one on.",
         inputSchema: {},
       },
       async () => {
