@@ -185,7 +185,6 @@ describe("management UI writes + export", () => {
   let originals: LocalDirStore;
   let plainId: number;
   let withOriginalId: number;
-  let linkedId: number;
   let originalRef: string;
 
   before(async () => {
@@ -195,6 +194,8 @@ describe("management UI writes + export", () => {
     store.init();
     originals = new LocalDirStore(tmp.file("originals"));
 
+    // Fixture entries are per-test where possible; these two are only ever
+    // touched by the tests that own them, so ordering doesn't matter.
     const plain = await store.insert({ body: "plain note", source_kind: "note" });
     plainId = plain.id;
     const saved = await originals.save({ data: Buffer.from("secret bytes"), mime: "text/plain" });
@@ -205,11 +206,6 @@ describe("management UI writes + export", () => {
       original_ref: originalRef,
     });
     withOriginalId = withOriginal.id;
-    const linked = await store.insert({
-      body: "carried over",
-      links: [{ rel: "continues", to: plainId }],
-    });
-    linkedId = linked.id;
 
     const config: JournalConfig = {
       dbPath,
@@ -240,6 +236,11 @@ describe("management UI writes + export", () => {
   });
 
   it("streams a lossless NDJSON export with meta, entries and links", async () => {
+    const older = await store.insert({ body: "export probe origin" });
+    const newer = await store.insert({
+      body: "export probe successor",
+      links: [{ rel: "continues", to: older.id }],
+    });
     const res = await httpGet(port, "/api/export", { "x-donguri-token": token });
     assert.equal(res.status, 200);
     assert.match(res.contentType, /application\/x-ndjson/);
@@ -254,17 +255,21 @@ describe("management UI writes + export", () => {
       .map((l) => JSON.parse(l) as Record<string, unknown>);
     assert.equal(lines[0]?.type, "meta");
     assert.equal(lines[0]?.format, "donguri-journal-export");
-    const entries = lines.filter((l) => l.type === "entry");
+    const bodies = lines.filter((l) => l.type === "entry").map((l) => l.body);
+    assert.ok(bodies.includes("export probe origin"));
+    assert.ok(bodies.includes("export probe successor"));
     const links = lines.filter((l) => l.type === "link");
-    assert.equal(entries.length, 3);
-    assert.deepEqual(
-      links.map((l) => [l.from_id, l.rel, l.to_id]),
-      [[linkedId, "continues", plainId]],
+    assert.ok(
+      links.some((l) => l.from_id === newer.id && l.rel === "continues" && l.to_id === older.id),
     );
   });
 
-  it("export can exclude soft-deleted entries", async () => {
+  it("export can exclude soft-deleted entries — and links pointing at them", async () => {
     const doomed = await store.insert({ body: "export tombstone probe" });
+    const pointer = await store.insert({
+      body: "export tombstone pointer",
+      links: [{ rel: "references", to: doomed.id }],
+    });
     store.softDelete(doomed.id);
     const all = await httpGet(port, "/api/export?include_deleted=true", {
       "x-donguri-token": token,
@@ -274,15 +279,29 @@ describe("management UI writes + export", () => {
     });
     assert.ok(all.body.includes("export tombstone probe"));
     assert.ok(!active.body.includes("export tombstone probe"));
+    // The pointer entry survives, but its edge to the excluded entry must not
+    // dangle in the filtered export.
+    const hasEdge = (body: string): boolean =>
+      body
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as Record<string, unknown>)
+        .some((l) => l.type === "link" && l.from_id === pointer.id && l.to_id === doomed.id);
+    assert.equal(hasEdge(all.body), true);
+    assert.equal(hasEdge(active.body), false);
   });
 
   it("serves original bytes by ref and 404s unknown refs", async () => {
-    const res = await httpGet(port, `/api/original?ref=${encodeURIComponent(originalRef)}`, {
+    const saved = await originals.save({
+      data: Buffer.from("download probe bytes"),
+      mime: "text/plain",
+    });
+    const res = await httpGet(port, `/api/original?ref=${encodeURIComponent(saved.ref)}`, {
       "x-donguri-token": token,
     });
     assert.equal(res.status, 200);
     assert.match(res.contentType, /text\/plain/);
-    assert.equal(res.body, "secret bytes");
+    assert.equal(res.body, "download probe bytes");
     const missing = await httpGet(port, `/api/original?ref=local:${"0".repeat(64)}`, {
       "x-donguri-token": token,
     });
@@ -306,16 +325,17 @@ describe("management UI writes + export", () => {
   });
 
   it("soft delete tombstones the entry (recoverable, hidden by default)", async () => {
+    const target = await store.insert({ body: "soft delete probe" });
     const res = await httpGet(
       port,
-      `/api/entries/${linkedId}/delete?mode=soft`,
+      `/api/entries/${target.id}/delete?mode=soft`,
       { "x-donguri-token": token },
       "POST",
     );
     assert.equal(res.status, 200);
-    assert.deepEqual(res.json(), { id: linkedId, mode: "soft", deleted: true });
-    assert.equal(store.getEntry(linkedId), null);
-    assert.ok(store.getEntry(linkedId, { include_deleted: true }));
+    assert.deepEqual(res.json(), { id: target.id, mode: "soft", deleted: true });
+    assert.equal(store.getEntry(target.id), null);
+    assert.ok(store.getEntry(target.id, { include_deleted: true }));
   });
 
   it("hard delete purges the entry and erases its orphaned original", async () => {

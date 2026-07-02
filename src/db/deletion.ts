@@ -7,6 +7,13 @@
  * failure can't leave secret bytes behind. Every failure leaves the operation
  * retryable (re-running re-purges; deleting an already-missing original is a
  * no-op).
+ *
+ * The erase is guarded against a concurrent re-attach: the ref is CLAIMED on
+ * the store (blocking new attachments in this process — MCP tools and the
+ * management UI share it), orphanhood is re-checked under the claim, and only
+ * then is the original erased. Without the claim, a capture landing between
+ * the orphan check and the erase could reference bytes we are about to
+ * destroy.
  */
 import type { OriginalStore } from "../originals/store.js";
 import type { JournalStore } from "./store.js";
@@ -25,26 +32,34 @@ export async function hardDeleteEntry(
   if (!peek.exists) {
     return { ok: true, deleted: false, original_erased: null };
   }
-  let originalErased: boolean | null = null;
-  if (peek.orphan && peek.original_ref) {
+  if (peek.original_ref) store.claimOriginalErase(peek.original_ref);
+  try {
+    let originalErased: boolean | null = null;
+    // Re-check under the claim: no await separates this from the claim, so the
+    // answer stays true until we release.
+    const guarded = store.peekHardDelete(id);
+    if (guarded.orphan && guarded.original_ref) {
+      try {
+        originalErased = await originals.delete(guarded.original_ref);
+      } catch (err) {
+        // Log details to stderr; keep the outward message generic (no raw exception).
+        log("failed to erase original during hard delete:", err);
+        return {
+          ok: false,
+          message: "Failed to erase the original; the entry was left intact so you can retry.",
+        };
+      }
+    }
     try {
-      originalErased = await originals.delete(peek.original_ref);
+      return { ok: true, deleted: store.purgeEntry(id), original_erased: originalErased };
     } catch (err) {
-      // Log details to stderr; keep the outward message generic (no raw exception).
-      log("failed to erase original during hard delete:", err);
+      log("failed to purge entry after erasing original:", err);
       return {
         ok: false,
-        message: "Failed to erase the original; the entry was left intact so you can retry.",
+        message: "Erased the original but failed to purge the entry; run delete again to finish.",
       };
     }
-  }
-  try {
-    return { ok: true, deleted: store.purgeEntry(id), original_erased: originalErased };
-  } catch (err) {
-    log("failed to purge entry after erasing original:", err);
-    return {
-      ok: false,
-      message: "Erased the original but failed to purge the entry; run delete again to finish.",
-    };
+  } finally {
+    if (peek.original_ref) store.releaseOriginalErase(peek.original_ref);
   }
 }

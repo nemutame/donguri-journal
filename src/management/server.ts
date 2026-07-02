@@ -185,8 +185,24 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
             "content-disposition": `attachment; filename="donguri-journal-${stamp}.ndjson"`,
             "cache-control": "no-store",
           });
-          const line = (obj: unknown): boolean => res.write(`${JSON.stringify(obj)}\n`);
-          line({
+          // Honor backpressure: when write() reports a full buffer, wait for
+          // drain (or the client going away) before producing more rows.
+          const line = async (obj: unknown): Promise<boolean> => {
+            if (res.destroyed) return false;
+            if (!res.write(`${JSON.stringify(obj)}\n`)) {
+              await new Promise<void>((resolve) => {
+                const done = (): void => {
+                  res.off("drain", done);
+                  res.off("close", done);
+                  resolve();
+                };
+                res.once("drain", done);
+                res.once("close", done);
+              });
+            }
+            return !res.destroyed;
+          };
+          await line({
             type: "meta",
             format: "donguri-journal-export",
             format_version: 1,
@@ -194,11 +210,18 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
             exported_at: new Date().toISOString(),
             include_deleted: includeDeleted,
           });
+          // When tombstones are excluded, links must be too, or the export
+          // would carry edges whose endpoints aren't in the file.
+          const exportedIds = includeDeleted ? null : new Set<number>();
           for (const entry of store.iterateEntries({ include_deleted: includeDeleted })) {
-            line({ type: "entry", ...entry });
+            exportedIds?.add(entry.id);
+            if (!(await line({ type: "entry", ...entry }))) return;
           }
           for (const link of store.iterateLinks()) {
-            line({ type: "link", ...link });
+            if (exportedIds && !(exportedIds.has(link.from_id) && exportedIds.has(link.to_id))) {
+              continue;
+            }
+            if (!(await line({ type: "link", ...link }))) return;
           }
           res.end();
           return;
