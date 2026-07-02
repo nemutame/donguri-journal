@@ -89,7 +89,7 @@ describe("feature toggles over MCP", () => {
     const bujo = features.find((f) => f.id === "bujo");
     assert.ok(bujo, "bujo feature is listed");
     assert.equal(bujo.enabled, false);
-    assert.equal(typeof bujo.has_playbook, "boolean");
+    assert.equal(bujo.has_playbook, true);
   });
 
   it("enable registers the feature's tools live; disable removes them", async () => {
@@ -101,6 +101,14 @@ describe("feature toggles over MCP", () => {
     );
     assert.equal(enabled.enabled, "bujo");
     assert.ok((await toolNames()).includes("bujo_day"));
+
+    // The playbook rides along: the ritual, the carry-over mechanics, and the
+    // document-not-chat rendering rule must all reach the agent.
+    const playbook = enabled.playbook as string;
+    assert.match(playbook, /bujo_reconcile/);
+    assert.match(playbook, /continues/);
+    assert.match(playbook, /persistent surface/i);
+    assert.equal(enabled.playbook_hint, PLAYBOOK_INSTALL_HINT);
 
     // Idempotent re-enable: same payload shape, no duplicate registration.
     const again = parse(

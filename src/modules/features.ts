@@ -15,6 +15,7 @@ import type { JournalContext } from "../kernel/context.js";
 import type { JournalModule } from "../kernel/module.js";
 import { loadPluginConfig, savePluginConfig } from "../kernel/plugin.js";
 import { errorResult, jsonResult } from "../kernel/result.js";
+import { BUJO_PLAYBOOK } from "../playbooks/bujo.js";
 import { registerBujoTools } from "./bujo.js";
 
 export interface BuiltinFeature {
@@ -58,6 +59,7 @@ const BUILTIN_FEATURES: Record<string, BuiltinFeature> = {
     description:
       "Read-only BuJo views over the journal: bujo_day / bujo_month / bujo_future / " +
       "bujo_reconcile (daily, monthly and future logs + the migration ritual).",
+    playbook: BUJO_PLAYBOOK,
     register: registerBujoTools,
   },
 };
