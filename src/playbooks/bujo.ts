@@ -23,6 +23,9 @@ day/month/future log, render it into the most persistent surface YOUR client off
    (ask once, remember the answer — a notes folder or vault is typical).
 3. Chat only as a fallback, or for quick in-ritual glances.
 
+For keeping the log open all day and ticking items directly (done / drop / carry),
+offer \`open_management_ui\` — its BuJo page renders the same projection with buttons.
+
 Regenerate, don't hand-edit: after any status change or new capture, rebuild the view
 from the tools and re-render the whole document. The journal is the source of truth —
 an edited rendering silently diverges, and a change written only into the document is

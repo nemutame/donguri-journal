@@ -25,7 +25,9 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { hardDeleteEntry } from "../db/deletion.js";
 import type { JournalContext } from "../kernel/context.js";
+import { loadPluginConfig } from "../kernel/plugin.js";
 import { SERVER_VERSION } from "../kernel/version.js";
+import { buildDayLog } from "../modules/bujo.js";
 import { renderApp } from "./ui.js";
 
 export interface ManagementUi {
@@ -54,6 +56,65 @@ const recallQuerySchema = z.object({
   q: z.string().min(1),
   k: z.coerce.number().int().optional(),
 });
+
+const tzSchema = z.coerce.number().int().min(-840).max(840).optional();
+
+const bujoDayQuerySchema = z.object({
+  date: z.string().date(),
+  tz_offset_minutes: tzSchema,
+});
+
+/** Carry an open action to a later day (YYYY-MM-DD) or month (YYYY-MM). */
+const carryBodySchema = z.object({
+  to: z.string().regex(/^\d{4}-\d{2}(-\d{2})?$/, "to must be YYYY-MM-DD or YYYY-MM"),
+  tz_offset_minutes: tzSchema,
+  body: z.string().min(1).optional(),
+});
+
+const captureBodySchema = z.object({
+  body: z.string().min(1),
+  date: z.string().date(),
+  nature: z.enum(["action", "event", "note"]).default("action"),
+  tz_offset_minutes: tzSchema,
+});
+
+/** Wall-clock noon on a local day, as the UTC instant the store expects. */
+function localNoonUtc(date: string, tzOffsetMinutes: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d, 12) - tzOffsetMinutes * 60_000).toISOString();
+}
+
+/** Local first-of-month midnight — the canonical timestamp for month granularity. */
+function monthFirstUtc(ym: string, tzOffsetMinutes: number): string {
+  const [y, m] = ym.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m - 1, 1) - tzOffsetMinutes * 60_000).toISOString();
+}
+
+/** Read a small JSON request body; rejects anything over 64 KiB. */
+function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
+  const MAX = 64 * 1024;
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX) {
+        reject(new Error("Request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      } catch {
+        reject(new Error("Invalid JSON body"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
 
 /** Constant-time token comparison that never throws on length mismatch. */
 function tokenMatches(expected: string, provided: string | null): boolean {
@@ -95,6 +156,17 @@ function hostIsLoopback(hostHeader: string | undefined): boolean {
  */
 export function createManagementServer(ctx: JournalContext, token: string): Server {
   const { store, originals, config } = ctx;
+
+  // The BuJo page is opt-in like the lens itself: the projection routes exist
+  // only while the feature is enabled (the toggle persists in plugins.json,
+  // updated live by enable_feature/disable_feature).
+  const bujoEnabled = async (): Promise<boolean> => {
+    try {
+      return (await loadPluginConfig(config.pluginsConfigPath)).features.bujo === true;
+    } catch {
+      return false;
+    }
+  };
 
   const sendJson = (res: ServerResponse, status: number, body: unknown): void => {
     // no-store: responses can carry journal bodies; keep them out of any cache.
@@ -170,8 +242,116 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
           return;
         }
 
+        // Lens-write routes: status, carry-over, quick capture. These are
+        // view-neutral journal writes — the same operations the MCP tools
+        // expose (update_entry_status / capture + continues) — so they are NOT
+        // gated on the BuJo toggle; only the /api/bujo/* projections are.
+        const statusMatch = url.pathname.match(/^\/api\/entries\/(\d+)\/status$/);
+        if (statusMatch) {
+          if (method !== "POST") {
+            sendJson(res, 405, { error: "Method not allowed" });
+            return;
+          }
+          const id = Number(statusMatch[1]);
+          const status = url.searchParams.get("status");
+          if (status !== "done" && status !== "dropped" && status !== "open") {
+            sendJson(res, 400, { error: "status must be 'done', 'dropped' or 'open'" });
+            return;
+          }
+          // 'open' clears the terminal status (null removes the meta key).
+          const meta = store.updateAnnotations(id, { status: status === "open" ? null : status });
+          if (!meta) {
+            sendJson(res, 404, { error: "Entry not found" });
+            return;
+          }
+          sendJson(res, 200, { id, status, meta });
+          return;
+        }
+
+        const carryMatch = url.pathname.match(/^\/api\/entries\/(\d+)\/carry$/);
+        if (carryMatch) {
+          if (method !== "POST") {
+            sendJson(res, 405, { error: "Method not allowed" });
+            return;
+          }
+          const id = Number(carryMatch[1]);
+          const source = store.getEntry(id);
+          if (!source) {
+            sendJson(res, 404, { error: "Entry not found" });
+            return;
+          }
+          let parsed: z.infer<typeof carryBodySchema>;
+          try {
+            parsed = carryBodySchema.parse(await readJsonBody(req));
+          } catch (err) {
+            sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid body" });
+            return;
+          }
+          const tz = parsed.tz_offset_minutes ?? 0;
+          const toMonth = parsed.to.length === 7;
+          // Carry-over is a pure append: a NEW entry on the target day/month
+          // plus a continues link — the old entry is never rewritten (its '>'
+          // or '<' glyph is derived from this link).
+          const meta: Record<string, unknown> = { nature: source.meta.nature ?? "action" };
+          for (const key of ["priority", "delegated_to"]) {
+            if (source.meta[key] !== undefined) meta[key] = source.meta[key];
+          }
+          if (toMonth) meta.granularity = "month";
+          const created = await store.insert({
+            body: parsed.body ?? source.body,
+            source_kind: source.source_kind,
+            occurred_at: toMonth ? monthFirstUtc(parsed.to, tz) : localNoonUtc(parsed.to, tz),
+            meta,
+            links: [{ rel: "continues", to: id }],
+          });
+          sendJson(res, 200, {
+            carried: id,
+            to: parsed.to,
+            new_id: created.id,
+            deduped: created.deduped,
+          });
+          return;
+        }
+
+        if (url.pathname === "/api/capture") {
+          if (method !== "POST") {
+            sendJson(res, 405, { error: "Method not allowed" });
+            return;
+          }
+          let parsed: z.infer<typeof captureBodySchema>;
+          try {
+            parsed = captureBodySchema.parse(await readJsonBody(req));
+          } catch (err) {
+            sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid body" });
+            return;
+          }
+          const created = await store.insert({
+            body: parsed.body,
+            occurred_at: localNoonUtc(parsed.date, parsed.tz_offset_minutes ?? 0),
+            meta: { nature: parsed.nature },
+          });
+          sendJson(res, 200, { id: created.id, deduped: created.deduped });
+          return;
+        }
+
         if (method !== "GET") {
           sendJson(res, 405, { error: "Method not allowed" });
+          return;
+        }
+
+        // Read-only BuJo projection for the console page — same buildDayLog
+        // the bujo_day tool uses, so UI and chat can never disagree.
+        if (url.pathname === "/api/bujo/day") {
+          if (!(await bujoEnabled())) {
+            sendJson(res, 404, { error: "BuJo lens is not enabled (see list_features)" });
+            return;
+          }
+          const parsed = bujoDayQuerySchema.safeParse(Object.fromEntries(url.searchParams));
+          if (!parsed.success) {
+            sendJson(res, 400, { error: "Invalid query", issues: parsed.error.issues });
+            return;
+          }
+          sendJson(res, 200, buildDayLog(store, parsed.data));
           return;
         }
 
