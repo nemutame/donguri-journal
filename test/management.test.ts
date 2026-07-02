@@ -82,6 +82,8 @@ describe("management UI host", () => {
       originals: new LocalDirStore(tmp.file("originals")),
       config,
       log: () => {},
+      storage: (id) => store.moduleStorage(id),
+      onEntryPurged: (hook) => store.onEntryPurged(hook),
     };
     ui = await startManagementUi(ctx);
     token = ui.token;
@@ -196,6 +198,8 @@ describe("management UI bind safety", () => {
         originals: new LocalDirStore(tmp.file("originals")),
         config,
         log: () => {},
+        storage: (id) => store.moduleStorage(id),
+        onEntryPurged: (hook) => store.onEntryPurged(hook),
       };
       const ui = await startManagementUi(ctx);
       assert.match(ui.url, /^http:\/\/127\.0\.0\.1:/);

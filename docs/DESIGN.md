@@ -144,12 +144,14 @@ flowchart TB
 | UI host / route | A web view mounted on the shared UI host | **planned** |
 | `OriginalStore` | Where originals are stored (local / Eagle / cloud) | interface exists ✅ |
 | `EmbeddingProvider` | Embedding backend (local / Ollama / cloud) | interface exists ✅ |
+| Module storage | A module's own `ext_<id>_*` tables in the shared DB (see §10) | `ctx.storage` ✅ |
 
 ### Kernel context (`ctx`)
 
 Modules never reach into core internals; they depend only on a small, **versioned
 `ctx`**: data operations (capture/query/recall/aggregate), originals get/save,
-config access, tool registration, and a stderr logger. Keeping `ctx` small and
+config access, tool registration, a stderr logger, namespaced module storage
+(`ctx.storage`), and purge hooks (`ctx.onEntryPurged`). Keeping `ctx` small and
 stable is what makes extension safe and is the basis of the "extensible" promise.
 
 ---
@@ -375,6 +377,34 @@ sequenceDiagram
 - **Dynamic load**: enabled plugins load at startup; mid-session installs use
   MCP's `tools/list_changed` notification so new tools/views appear **without
   restarting the client** (SDK support to be verified at build time).
+
+### Module storage (`ext_` tables)
+
+Opt-in modules may create **their own tables** in the shared SQLite file via
+`ctx.storage(moduleId)` — e.g. a lens's custom-collection membership/ordering,
+view settings, or a connector's sync state. The rules:
+
+- **Namespaced**: tables are `ext_<module>_*` (identifier-validated); each
+  module keeps its own schema version under a namespaced `schema_meta` key —
+  the core schema version is never touched.
+- **Facts in core, structures in modules.** Journal *facts* (things worth
+  recalling: tasks, events, notes, their status and relations) belong in the
+  core `entries` / `meta` / `entry_links`, where every lens, export and future
+  sync can see them. Module tables hold **view-owned structures** and
+  **rebuildable caches**, referencing entries **by id only**.
+- **Never copy entry content** into a module table — the hard-delete promise
+  ("a secret can be truly erased") must survive extensions. Register
+  `ctx.onEntryPurged(hook)` to clean up references: hooks run *inside* the
+  purge transaction, so module rows and the entry vanish atomically (a failing
+  hook aborts the purge rather than leaving references behind).
+- **Never ALTER or directly write core tables.** All journal writes go through
+  the store's public API so dedup / embedding / links / tombstones hold. Like
+  the rest of plugin security this is contract + review today, isolation later.
+- **Lifecycle**: uninstall keeps module tables by default (data is the owner's;
+  purge on request). File-level DB backups include them automatically; the
+  JSONL export and Phase 2 CRDT sync cover core tables only — one more reason
+  facts live in core.
+- Manifests declare the `storage` capability so installs surface it for consent.
 
 **Trust & security (the crux — installing third-party code via an LLM is
 arbitrary code execution against a private journal):**
