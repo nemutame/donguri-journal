@@ -66,13 +66,22 @@ const bujoDayQuerySchema = z.object({
 });
 
 /**
- * Carry an open action to a later day (YYYY-MM-DD) or month (YYYY-MM).
- * Both alternatives are calendar-validated so `2026-13` or `2026-02-30` never
- * reach Date.UTC (which would silently roll them into a different date).
+ * A carry target is a later day (YYYY-MM-DD) or month (YYYY-MM), calendar-
+ * validated so `2026-13` or `2026-02-30` never reach Date.UTC (which would
+ * silently roll them into a different date). A refine (not a union) so the
+ * rejection carries ONE readable message instead of raw per-branch issues.
  */
+function isValidCarryTarget(s: string): boolean {
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(s)) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 const carryBodySchema = z.object({
-  to: z.union([z.string().date(), z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)], {
-    errorMap: () => ({ message: "to must be a valid YYYY-MM-DD day or YYYY-MM month" }),
+  to: z.string().refine(isValidCarryTarget, {
+    message: "to must be a valid YYYY-MM-DD day or YYYY-MM month",
   }),
   tz_offset_minutes: tzSchema,
   body: z.string().min(1).optional(),
@@ -97,22 +106,34 @@ function monthFirstUtc(ym: string, tzOffsetMinutes: number): string {
   return new Date(Date.UTC(y, m - 1, 1) - tzOffsetMinutes * 60_000).toISOString();
 }
 
-/** Read a small JSON request body; rejects anything over 64 KiB. */
+class BodyTooLargeError extends Error {}
+
+/**
+ * Read a small JSON request body; rejects anything over 64 KiB. On overflow
+ * the socket is NOT destroyed here — the caller still owes the client a 413,
+ * and killing the request also kills the response (observed as a bare
+ * connection reset). Node closes the connection itself after a response to a
+ * half-read request, so nothing is left streaming unbounded.
+ */
 function readJsonBody(req: import("node:http").IncomingMessage): Promise<unknown> {
   const MAX = 64 * 1024;
   return new Promise((resolve, reject) => {
     let size = 0;
+    let overflowed = false;
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => {
+      if (overflowed) return;
       size += chunk.length;
       if (size > MAX) {
-        reject(new Error("Request body too large"));
-        req.destroy();
+        overflowed = true;
+        chunks.length = 0;
+        reject(new BodyTooLargeError("Request body too large"));
         return;
       }
       chunks.push(chunk);
     });
     req.on("end", () => {
+      if (overflowed) return;
       try {
         resolve(chunks.length === 0 ? {} : JSON.parse(Buffer.concat(chunks).toString("utf8")));
       } catch {
@@ -185,6 +206,26 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
       "cache-control": "no-store",
     });
     res.end(JSON.stringify(body));
+  };
+
+  /** Parse+validate a JSON body; on failure the error response is already sent. */
+  const parseJsonBody = async <T>(
+    req: import("node:http").IncomingMessage,
+    res: ServerResponse,
+    schema: z.ZodType<T>,
+  ): Promise<T | null> => {
+    try {
+      return schema.parse(await readJsonBody(req));
+    } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        sendJson(res, 413, { error: "Request body too large (max 64 KiB)" });
+      } else if (err instanceof z.ZodError) {
+        sendJson(res, 400, { error: "Invalid body", issues: err.issues });
+      } else {
+        sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid body" });
+      }
+      return null;
+    }
   };
 
   return createServer(async (req, res) => {
@@ -290,13 +331,8 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
             sendJson(res, 404, { error: "Entry not found" });
             return;
           }
-          let parsed: z.infer<typeof carryBodySchema>;
-          try {
-            parsed = carryBodySchema.parse(await readJsonBody(req));
-          } catch (err) {
-            sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid body" });
-            return;
-          }
+          const parsed = await parseJsonBody(req, res, carryBodySchema);
+          if (!parsed) return;
           const tz = parsed.tz_offset_minutes ?? 0;
           const toMonth = parsed.to.length === 7;
           // Carry-over is a pure append: a NEW entry on the target day/month
@@ -328,13 +364,8 @@ export function createManagementServer(ctx: JournalContext, token: string): Serv
             sendJson(res, 405, { error: "Method not allowed" });
             return;
           }
-          let parsed: z.infer<typeof captureBodySchema>;
-          try {
-            parsed = captureBodySchema.parse(await readJsonBody(req));
-          } catch (err) {
-            sendJson(res, 400, { error: err instanceof Error ? err.message : "Invalid body" });
-            return;
-          }
+          const parsed = await parseJsonBody(req, res, captureBodySchema);
+          if (!parsed) return;
           const created = await store.insert({
             body: parsed.body,
             occurred_at: localNoonUtc(parsed.date, parsed.tz_offset_minutes ?? 0),
