@@ -15,4 +15,6 @@ Core verbs: \`capture\` stashes a moment, note, or file as it happens (low frict
 
 Some capabilities are opt-in and their tools stay HIDDEN until enabled: call \`list_features\` to discover them — for example the Bullet Journal lens (daily/monthly/future logs plus a migration ritual). When the user mentions daily logs, task carry-over, or monthly planning, check \`list_features\` and offer \`enable_feature\` instead of saying the server can't do it. Lenses are read-only views; all writes go through the generic tools above.
 
-Housekeeping: \`storage_stats\` (size and running server version), \`reindex\`, \`delete_entry\`, \`get_original\`, \`open_management_ui\` (local web console), and the plugin tools (\`list_installed_plugins\` etc.).`;
+Housekeeping: \`storage_stats\` (size and running server version), \`reindex\`, \`delete_entry\`, \`get_original\`, \`open_management_ui\` (local web console), and the plugin tools (\`list_installed_plugins\` etc.).
+
+When asked to UPDATE donguri-journal: it is this MCP server (an npm-global package), not a repo or directory — do not search the filesystem. Compare the running version (\`storage_stats\`) with \`npm view donguri-journal version\`; if newer, run \`npm i -g donguri-journal@latest\` with the user's consent and have them restart their MCP client.`;

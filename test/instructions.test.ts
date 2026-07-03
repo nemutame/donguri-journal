@@ -23,6 +23,13 @@ describe("SERVER_INSTRUCTIONS", () => {
     }
   });
 
+  it("tells agents how to update the server (not a repo — an npm package)", () => {
+    // Field observation: "update donguri-journal" sent an agent hunting the
+    // filesystem for a repo. The handshake must preempt that.
+    assert.match(SERVER_INSTRUCTIONS, /not a repo/);
+    assert.match(SERVER_INSTRUCTIONS, /npm i -g donguri-journal@latest/);
+  });
+
   it("reaches the client through the MCP initialize handshake", async () => {
     const server = new McpServer(
       { name: "donguri-journal-test", version: "0.0.0" },
