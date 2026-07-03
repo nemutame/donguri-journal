@@ -505,12 +505,28 @@ describe("management UI bujo page API", () => {
     assert.equal(source?.glyph, "<");
   });
 
+  it("an oversized JSON body gets a 413, not a connection reset", async () => {
+    const res = await httpPost("/api/capture", {
+      body: "x".repeat(70 * 1024),
+      date: DAY,
+    });
+    assert.equal(res.status, 413);
+    assert.match(res.body, /too large/i);
+    // The server survives and keeps answering.
+    const after = await httpPost("/api/capture", { body: "still alive", date: DAY });
+    assert.equal(after.status, 200);
+  });
+
   it("carry validates its target and body", async () => {
     const created = await httpPost("/api/capture", { body: "strict", date: DAY });
     const id = (created.json() as { id: number }).id;
     assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "someday" })).status, 400);
-    // Digit-shaped but calendar-invalid targets must not roll over via Date.UTC.
-    assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-02-30" })).status, 400);
+    // Digit-shaped but calendar-invalid targets must not roll over via Date.UTC,
+    // and the rejection carries one readable message (not raw union branches).
+    const feb30 = await httpPost(`/api/entries/${id}/carry`, { to: "2026-02-30" });
+    assert.equal(feb30.status, 400);
+    const issues = (feb30.json() as { issues: Array<{ message: string }> }).issues;
+    assert.match(issues[0]?.message ?? "", /YYYY-MM-DD day or YYYY-MM month/);
     assert.equal((await httpPost(`/api/entries/${id}/carry`, { to: "2026-13" })).status, 400);
     assert.equal((await httpPost(`/api/entries/${id}/carry`)).status, 400);
     assert.equal((await httpPost("/api/entries/999999/carry", { to: "2026-07-03" })).status, 404);
